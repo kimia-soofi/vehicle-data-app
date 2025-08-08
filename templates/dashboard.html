@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>پنل مدیریت</title>
+</head>
+<body>
+  <h2>پنل مدیریت خودروها</h2>
+
+  <form method="POST">
+    <input type="text" name="new_car_type" placeholder="نوع خودرو جدید">
+    <button type="submit">افزودن نوع خودرو</button>
+  </form>
+
+  {% if df is not none %}
+  <table border="1" cellpadding="5">
+    <thead>
+      <tr>
+        {% for col in df.columns %}
+        <th>{{ col }}</th>
+        {% endfor %}
+        <th>عکس</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in range(df.shape[0]) %}
+      <tr>
+        {% for col in df.columns %}
+        <td>{{ df[col][i] }}</td>
+        {% endfor %}
+        <td>
+          {% if df['Photo'][i] %}
+          <a href="{{ url_for('uploaded_file', filename=df['Photo'][i]) }}" target="_blank">نمایش</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>داده‌ای موجود نیست.</p>
+  {% endif %}
+</body>
+</html>
