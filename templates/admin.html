@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <title>پنل مدیریت</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>KMC</h1>
+        <a href="{{ url_for('logout') }}">خروج</a>
+    </header>
+
+    <main>
+        <h2>مدیریت مدل‌های خودرو</h2>
+
+        <form method="POST">
+            <input type="text" name="new_car_type" placeholder="مدل جدید">
+            <button type="submit" name="add_car_type">افزودن مدل</button>
+        </form>
+
+        <ul>
+            {% for type in car_types %}
+            <li>
+                {{ type }}
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="delete_car_type" value="{{ type }}">
+                    <button type="submit">حذف</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <a href="{{ url_for('download_data') }}">📥 دانلود اطلاعات (Excel)</a>
+    </main>
+</body>
+</html>
