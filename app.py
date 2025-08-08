@@ -1,88 +1,90 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file
+from flask import Flask, render_template, request, redirect, url_for, send_file, session
+from werkzeug.utils import secure_filename
 import os
-import pandas as pd
+import csv
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['EXCEL_FILE'] = 'vehicle_data.xlsx'
-app.config['CAR_TYPES_FILE'] = 'car_types.txt'
+app.secret_key = 'your_secret_key'  # لازم برای session
 
-# Ensure uploads directory exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+UPLOAD_FOLDER = 'uploads'
+DATA_FILE = 'vehicle_data.csv'
+CAR_TYPES_FILE = 'car_types.txt'
+ADMIN_PASSWORD = 'kmcadmin123'
 
-# Load or create car types list
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 def load_car_types():
-    if not os.path.exists(app.config['CAR_TYPES_FILE']):
+    if not os.path.exists(CAR_TYPES_FILE):
         return []
-    with open(app.config['CAR_TYPES_FILE'], 'r', encoding='utf-8') as f:
-        return [line.strip() for line in f.readlines()]
+    with open(CAR_TYPES_FILE, 'r', encoding='utf-8') as f:
+        return [line.strip() for line in f if line.strip()]
 
-def save_car_type(car_type):
-    car_type = car_type.strip()
-    if car_type and car_type not in load_car_types():
-        with open(app.config['CAR_TYPES_FILE'], 'a', encoding='utf-8') as f:
-            f.write(f"{car_type}\n")
+def save_car_types(car_types):
+    with open(CAR_TYPES_FILE, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(car_types))
 
 @app.route('/', methods=['GET', 'POST'])
-def form():
+def vehicle_form():
     car_types = load_car_types()
     if request.method == 'POST':
         car_type = request.form['car_type']
         vin = request.form['vin']
         mileage = request.form['mileage']
         notes = request.form['notes']
-        photo = request.files['photo']
+        image = request.files['image']
 
-        if photo.filename:
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            filename = f"{vin}_{timestamp}_{photo.filename}"
-            photo_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            photo.save(photo_path)
-        else:
-            filename = ''
+        image_filename = ''
+        if image:
+            image_filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(image.filename)
+            image.save(os.path.join(UPLOAD_FOLDER, image_filename))
 
-        # Save to Excel
-        data = {
-            'Date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'Car Type': car_type,
-            'VIN': vin,
-            'Mileage': mileage,
-            'Notes': notes,
-            'Photo': filename
-        }
+        with open(DATA_FILE, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow([car_type, vin, mileage, notes, image_filename])
 
-        if os.path.exists(app.config['EXCEL_FILE']):
-            df = pd.read_excel(app.config['EXCEL_FILE'])
-            df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
-        else:
-            df = pd.DataFrame([data])
-
-        df.to_excel(app.config['EXCEL_FILE'], index=False)
-
-        return redirect(url_for('form'))
-
+        return redirect(url_for('vehicle_form'))
+    
     return render_template('form.html', car_types=car_types)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form['password']
+        if password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('dashboard'))
+    return render_template('admin_login.html')
 
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    df = None
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
     car_types = load_car_types()
 
-    if os.path.exists(app.config['EXCEL_FILE']):
-        df = pd.read_excel(app.config['EXCEL_FILE'])
-
     if request.method == 'POST':
-        new_type = request.form.get('new_car_type', '').strip()
-        if new_type:
-            save_car_type(new_type)
-        return redirect(url_for('dashboard'))
+        if 'add_car_type' in request.form:
+            new_type = request.form['new_car_type'].strip()
+            if new_type and new_type not in car_types:
+                car_types.append(new_type)
+                save_car_types(car_types)
+        elif 'delete_car_type' in request.form:
+            delete_type = request.form['delete_car_type'].strip()
+            if delete_type in car_types:
+                car_types.remove(delete_type)
+                save_car_types(car_types)
 
-    return render_template('dashboard.html', df=df, car_types=car_types)
+    return render_template('admin.html', car_types=car_types)
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('vehicle_form'))
+
+@app.route('/download')
+def download_data():
+    return send_file(DATA_FILE, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
