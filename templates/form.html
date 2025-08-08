@@ -1,34 +1,39 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fa">
 <head>
-  <meta charset="UTF-8">
-  <title>فرم ثبت اطلاعات خودرو</title>
+    <meta charset="UTF-8">
+    <title>فرم ثبت اطلاعات خودرو</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h2>ثبت اطلاعات خودرو</h2>
-  <form method="POST" enctype="multipart/form-data">
-    <label>نوع خودرو:</label>
-    <select name="car_type">
-      {% for ct in car_types %}
-      <option>{{ ct }}</option>
-      {% endfor %}
-    </select><br><br>
+    <header>
+        <h1>KMC</h1>
+    </header>
 
-    <label>شماره شاسی (VIN):</label>
-    <input type="text" name="vin" required><br><br>
+    <main>
+        <h2>فرم ثبت اطلاعات خودرو</h2>
+        <form method="POST" enctype="multipart/form-data">
+            <label>نوع خودرو:</label>
+            <select name="car_type" required>
+                {% for type in car_types %}
+                <option value="{{ type }}">{{ type }}</option>
+                {% endfor %}
+            </select>
 
-    <label>کارکرد کیلومتر:</label>
-    <input type="number" name="mileage" required><br><br>
+            <label>شماره شاسی:</label>
+            <input type="text" name="vin" required>
 
-    <label>توضیحات:</label>
-    <textarea name="notes"></textarea><br><br>
+            <label>کارکرد کیلومتر:</label>
+            <input type="text" name="mileage" required>
 
-    <label>آپلود عکس:</label>
-    <input type="file" name="photo" accept="image/*"><br><br>
+            <label>توضیحات:</label>
+            <textarea name="notes"></textarea>
 
-    <button type="submit">ثبت</button>
-  </form>
-  <br>
-  <a href="{{ url_for('dashboard') }}">رفتن به پنل مدیریت</a>
+            <label>عکس خودرو:</label>
+            <input type="file" name="image">
+
+            <button type="submit">ثبت</button>
+        </form>
+    </main>
 </body>
 </html>
