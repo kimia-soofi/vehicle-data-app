@@ -1,22 +1,25 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>ورود مدیریت</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ورود ادمین</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-    <header>
-        <h1>KMC</h1>
-    </header>
-
-    <main>
-        <h2>ورود پنل مدیریت</h2>
-        <form method="POST">
-            <label>رمز عبور:</label>
-            <input type="password" name="password" required>
-            <button type="submit">ورود</button>
-        </form>
-    </main>
+  <div class="container">
+    <h2 class="title">ورود ادمین</h2>
+    <form method="POST" class="login-form">
+      <label>
+        <span>نام کاربری</span>
+        <input type="text" name="username" required />
+      </label>
+      <label>
+        <span>رمز عبور</span>
+        <input type="password" name="password" required />
+      </label>
+      <button class="btn" type="submit">ورود</button>
+    </form>
+  </div>
 </body>
 </html>
