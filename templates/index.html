@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>ثبت اطلاعات خودرو - KMC</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="card" style="text-align:center;">
+      <h1>سامانه ثبت مشاهدات روزانه ارزیابی</h1>
+      <p>یکی از گزینه‌ها را انتخاب کنید:</p>
+      <div class="actions" style="justify-content:center; margin-top:12px;">
+        <a class="button" href="{{ url_for('staff_form') }}">ورود همکاران</a>
+        <a class="button" href="{{ url_for('admin_login') }}">ورود ادمین</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

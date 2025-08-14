@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>ورود ادمین</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="card" style="max-width:520px; margin:auto;">
+      <h1>ورود ادمین</h1>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
+        {% endif %}
+      {% endwith %}
+      <form method="POST">
+        <label>نام کاربری</label>
+        <input type="text" name="username" required />
+
+        <label>رمز عبور</label>
+        <input type="password" name="password" required />
+
+        <div class="actions">
+          <button type="submit">ورود</button>
+          <a class="button" href="{{ url_for('index') }}">بازگشت</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
