@@ -17,7 +17,6 @@
       {% endwith %}
 
       <form id="eval-form" method="POST">
-        <!-- اطلاعات پایه بالا -->
         <div class="grid-2">
           <div>
             <label>نوع خودرو</label>
@@ -61,7 +60,6 @@
           </div>
         </div>
 
-        <!-- جدول پنج ستونی -->
         <h2 style="margin-top:8px;">جدول مشاهدات</h2>
         <div class="actions" style="margin:8px 0;">
           <button type="button" id="add-row">افزودن سطر</button>
@@ -78,19 +76,15 @@
                 <th>نظر سرپرست تیم ارزیابی</th>
               </tr>
             </thead>
-            <tbody>
-              <!-- سطرهای پویا اینجا اضافه می‌شوند -->
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
 
-        <!-- پایین فرم -->
         <div style="margin-top:16px;">
           <label>نام ارزیاب</label>
           <input type="text" name="evaluator" required />
         </div>
 
-        <!-- ورودی مخفی برای ارسال JSON جدول -->
         <input type="hidden" name="rows_json" id="rows_json" />
 
         <div class="actions" style="margin-top:12px;">
@@ -102,87 +96,48 @@
   </div>
 
 <script>
-// محاسبه خودکار مسافت
 function recalcDistance() {
   const s = parseFloat(document.getElementById('start_km').value || 0);
   const e = parseFloat(document.getElementById('end_km').value || 0);
-  const d = (isNaN(e - s)) ? "" : (e - s);
-  const dist = document.getElementById('distance');
-  dist.value = d !== "" ? Number(d.toFixed(1)) : "";
+  document.getElementById('distance').value = isNaN(e-s) ? "" : (e-s).toFixed(1);
 }
 document.getElementById('start_km').addEventListener('input', recalcDistance);
 document.getElementById('end_km').addEventListener('input', recalcDistance);
 
-// مدیریت جدول پویا
 const tbody = document.querySelector('#obs-table tbody');
 const addBtn = document.getElementById('add-row');
 
-function buildRow(index) {
+function buildRow(index){
   const tr = document.createElement('tr');
-
-  // ردیف (فقط نمایش)
-  const tdIdx = document.createElement('td');
-  tdIdx.textContent = index + 1;
-
-  // ایرادات فنی
-  const tdIssue = document.createElement('td');
-  const inIssue = document.createElement('textarea');
-  inIssue.rows = 2;
-
-  // شرایط بروز ایراد
-  const tdCond = document.createElement('td');
-  const inCond = document.createElement('textarea');
-  inCond.rows = 2;
-
-  // کیلومتر بروز ایراد
-  const tdKm = document.createElement('td');
-  const inKm = document.createElement('input');
-  inKm.type = 'number';
-  inKm.step = '0.1';
-
-  // نظر سرپرست
-  const tdSup = document.createElement('td');
-  const inSup = document.createElement('textarea');
-  inSup.rows = 2;
-
-  tdIssue.appendChild(inIssue);
-  tdCond.appendChild(inCond);
-  tdKm.appendChild(inKm);
-  tdSup.appendChild(inSup);
-
-  tr.appendChild(tdIdx);
-  tr.appendChild(tdIssue);
-  tr.appendChild(tdCond);
-  tr.appendChild(tdKm);
-  tr.appendChild(tdSup);
-
+  tr.innerHTML = `
+    <td>${index+1}</td>
+    <td><textarea rows="2"></textarea></td>
+    <td><textarea rows="2"></textarea></td>
+    <td><input type="number" step="0.1"></td>
+    <td><textarea rows="2"></textarea></td>
+  `;
   return tr;
 }
 
-// یک سطر اولیه
-addRow();
 function addRow() {
   const row = buildRow(tbody.children.length);
   tbody.appendChild(row);
   renumber();
 }
 function renumber() {
-  [...tbody.children].forEach((tr, i) => tr.children[0].textContent = i + 1);
+  [...tbody.children].forEach((tr,i)=>tr.children[0].textContent=i+1);
 }
 addBtn.addEventListener('click', addRow);
+addRow();
 
-// قبل از ارسال فرم، محتویات جدول را به JSON تبدیل کن
-document.getElementById('eval-form').addEventListener('submit', function (e) {
-  const rows = [];
-  [...tbody.children].forEach((tr) => {
-    rows.push({
-      row: parseInt(tr.children[0].textContent, 10),
-      issue: tr.children[1].querySelector('textarea').value.trim(),
-      condition: tr.children[2].querySelector('textarea').value.trim(),
-      km: tr.children[3].querySelector('input').value,
-      supervisor_comment: tr.children[4].querySelector('textarea').value.trim()
-    });
-  });
+document.getElementById('eval-form').addEventListener('submit', function(e){
+  const rows = [...tbody.children].map(tr=>({
+    row: parseInt(tr.children[0].textContent,10),
+    issue: tr.children[1].querySelector('textarea').value.trim(),
+    condition: tr.children[2].querySelector('textarea').value.trim(),
+    km: tr.children[3].querySelector('input').value,
+    supervisor_comment: tr.children[4].querySelector('textarea').value.trim()
+  }));
   document.getElementById('rows_json').value = JSON.stringify(rows);
 });
 </script>
