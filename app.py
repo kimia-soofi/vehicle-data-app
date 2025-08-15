@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 import os, json, io, shutil
 from datetime import datetime
-import jdatetime
 from openpyxl import Workbook
 from config import ADMIN_USERNAME as CONF_USER, ADMIN_PASSWORD as CONF_PASS, CAR_MODELS_FILE, INITIAL_CAR_MODELS
 
@@ -15,11 +14,6 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", CONF_PASS)
 DATA_FOLDER = "data"
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
-# ----- توابع تاریخ شمسی
-def persian_date_now():
-    now = jdatetime.datetime.now()
-    return now.strftime("%Y/%m/%d %H:%M:%S")
-    
 # ----- مدیریت مدل‌ها
 def load_car_models():
     if os.path.isfile(CAR_MODELS_FILE):
