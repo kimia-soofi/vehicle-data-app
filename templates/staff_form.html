@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <title>ثبت مشاهدات روزانه ارزیابی</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <!-- Persian Datepicker (CSS) -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 </head>
 <body>
   <div class="container">
@@ -33,8 +37,9 @@
           </div>
 
           <div>
-            <label>تاریخ انجام ارزیابی</label>
-            <input type="date" name="eval_date" required />
+            <label>تاریخ انجام ارزیابی (شمسی)</label>
+            <!-- به‌جای input date از text + تقویم شمسی استفاده می‌کنیم -->
+            <input type="text" name="eval_date" id="eval_date" autocomplete="off" required />
           </div>
           <div>
             <label>ساعت شروع</label>
@@ -88,59 +93,75 @@
         <input type="hidden" name="rows_json" id="rows_json" />
 
         <div class="actions" style="margin-top:12px;">
-          <button type="submit"class="button">ذخیره فرم</button>
+          <button type="submit">ذخیره فرم</button>
           <a class="button" href="{{ url_for('index') }}">بازگشت</a>
         </div>
       </form>
     </div>
   </div>
 
+<!-- jQuery + Persian-Date + Persian-Datepicker -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.0.6/dist/persian-date.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.js"></script>
+
 <script>
+// فعال‌سازی تقویم شمسی روی فیلد تاریخ
+$(function(){
+  $('#eval_date').persianDatepicker({
+    format: 'YYYY/MM/DD',
+    initialValue: false,
+    autoClose: true,
+    observer: true
+  });
+});
+
+// محاسبه خودکار مسافت
 function recalcDistance() {
   const s = parseFloat(document.getElementById('start_km').value || 0);
   const e = parseFloat(document.getElementById('end_km').value || 0);
-  document.getElementById('distance').value = isNaN(e-s) ? "" : (e-s).toFixed(1);
+  document.getElementById('distance').value = (!isNaN(e - s)) ? (e - s).toFixed(1) : "";
 }
 document.getElementById('start_km').addEventListener('input', recalcDistance);
 document.getElementById('end_km').addEventListener('input', recalcDistance);
 
+// جدول پویا
 const tbody = document.querySelector('#obs-table tbody');
 const addBtn = document.getElementById('add-row');
 
 function buildRow(index){
   const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td>${index+1}</td>
-    <td><textarea rows="2"></textarea></td>
-    <td><textarea rows="2"></textarea></td>
-    <td><input type="number" step="0.1"></td>
-    <td><textarea rows="2"></textarea></td>
-  `;
+  const tdIdx = document.createElement('td'); tdIdx.textContent = index+1;
+
+  const tdIssue = document.createElement('td'); const inIssue = document.createElement('textarea'); inIssue.rows=2;
+  const tdCond = document.createElement('td'); const inCond = document.createElement('textarea'); inCond.rows=2;
+  const tdKm = document.createElement('td'); const inKm = document.createElement('input'); inKm.type='number'; inKm.step='0.1';
+  const tdSup = document.createElement('td'); const inSup = document.createElement('textarea'); inSup.rows=2;
+
+  tdIssue.appendChild(inIssue); tdCond.appendChild(inCond); tdKm.appendChild(inKm); tdSup.appendChild(inSup);
+  tr.appendChild(tdIdx); tr.appendChild(tdIssue); tr.appendChild(tdCond); tr.appendChild(tdKm); tr.appendChild(tdSup);
   return tr;
 }
 
-function addRow() {
-  const row = buildRow(tbody.children.length);
-  tbody.appendChild(row);
-  renumber();
-}
-function renumber() {
-  [...tbody.children].forEach((tr,i)=>tr.children[0].textContent=i+1);
-}
-addBtn.addEventListener('click', addRow);
+function addRow(){ tbody.appendChild(buildRow(tbody.children.length)); renumber(); }
+function renumber(){ [...tbody.children].forEach((tr,i)=>tr.children[0].textContent=i+1); }
+addBtn.addEventListener('click',addRow);
 addRow();
 
-document.getElementById('eval-form').addEventListener('submit', function(e){
-  const rows = [...tbody.children].map(tr=>({
-    row: parseInt(tr.children[0].textContent,10),
-    issue: tr.children[1].querySelector('textarea').value.trim(),
-    condition: tr.children[2].querySelector('textarea').value.trim(),
-    km: tr.children[3].querySelector('input').value,
-    supervisor_comment: tr.children[4].querySelector('textarea').value.trim()
-  }));
+// قبل از ارسال فرم، جدول را به JSON تبدیل کن
+document.getElementById('eval-form').addEventListener('submit', function(){
+  const rows=[];
+  [...tbody.children].forEach(tr=>{
+    rows.push({
+      row: parseInt(tr.children[0].textContent,10),
+      issue: tr.children[1].querySelector('textarea').value.trim(),
+      condition: tr.children[2].querySelector('textarea').value.trim(),
+      km: tr.children[3].querySelector('input').value,
+      supervisor_comment: tr.children[4].querySelector('textarea').value.trim()
+    });
+  });
   document.getElementById('rows_json').value = JSON.stringify(rows);
 });
 </script>
 </body>
 </html>
-
