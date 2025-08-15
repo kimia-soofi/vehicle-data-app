@@ -9,8 +9,6 @@ from config import ADMIN_USERNAME as CONF_USER, ADMIN_PASSWORD as CONF_PASS, CAR
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
 
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", CONF_USER)
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", CONF_PASS)
 
 DATA_FOLDER = "data"
 os.makedirs(DATA_FOLDER, exist_ok=True)
@@ -34,6 +32,19 @@ def persian_date_now():
 @app.route("/")
 def index():
     return render_template("index.html")
+    
+# ----- ورود همکاران
+@app.route("/staff/login", methods=["GET", "POST"])
+def staff_login():
+    if request.method == "POST":
+        u = request.form.get("username", "")
+        p = request.form.get("password", "")
+        if u == STAFF_USERNAME and p == STAFF_PASSWORD:
+            session["staff_logged_in"] = True
+            return redirect(url_for("staff_form"))
+        flash("نام کاربری یا رمز عبور اشتباه است ❌")
+        return redirect(url_for("staff_login"))
+    return render_template("staff_login.html")
 
 # ----- فرم همکاران
 @app.route("/staff", methods=["GET", "POST"])
@@ -228,6 +239,12 @@ def admin_delete(model,fname):
         os.remove(fpath)
         flash("رکورد حذف شد 🗑️")
     return redirect(url_for("admin_panel"))
+    
+# ----- خروج کاربران
+@app.route("/staff/logout")
+def staff_logout():
+    session.pop("staff_logged_in", None)
+    return redirect(url_for("index"))
 
 # ----- خروج ادمین
 @app.route("/admin/logout")
@@ -237,5 +254,6 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
