@@ -26,6 +26,9 @@ def save_car_models(models):
     with open(CAR_MODELS_FILE, "w", encoding="utf-8") as f:
         json.dump(models, f, ensure_ascii=False, indent=2)
 
+def persian_date_now():
+    return jdatetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+
 # ----- صفحه فرود
 @app.route("/")
 def index():
@@ -54,7 +57,8 @@ def staff_form():
         os.makedirs(car_folder, exist_ok=True)
 
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        payload = {"meta":{
+        payload = {
+            "meta":{
             "vehicle_type":vehicle_type,
             "vin":vin,
             "eval_date":eval_date,
@@ -64,8 +68,10 @@ def staff_form():
             "end_km":end_km,
             "distance":distance,
             "evaluator":evaluator,
-            "submitted_at":datetime.now().isoformat(timespec="seconds")
-        },"observations":rows,"status":""}
+            "submitted_at": persian_date_now()
+        },
+            "observations":rows,
+            "status":""}
 
         with open(os.path.join(car_folder, filename),"w",encoding="utf-8") as f:
             json.dump(payload,f,ensure_ascii=False,indent=2)
@@ -230,3 +236,4 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
