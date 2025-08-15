@@ -1,7 +1,9 @@
-# نام کاربری و رمز عبور ادمین (می‌توانی اینجا عوض کنی
-# یا روی هاست به‌صورت ENV ست کنی: ADMIN_USERNAME / ADMIN_PASSWORD)
+# نام کاربری و رمز عبور ادمین (می‌توانی اینجا عوض کنی یا ENV ست کنی)
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "1234"
 
-# فهرست مدل‌های خودرو که در منوی کشویی نمایش داده می‌شود
-CAR_MODELS = ["J4", "X5", "J6", "EAGLE"]
+# فایل مدل‌های خودرو
+CAR_MODELS_FILE = "car_models.json"
+
+# مدل‌های اولیه در صورت نبود فایل
+INITIAL_CAR_MODELS = ["J4", "X5", "J6", "EAGLE"]
