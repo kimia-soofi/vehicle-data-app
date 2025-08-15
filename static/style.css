@@ -16,7 +16,7 @@ h1, h2 { color:#0f2f5f; margin: 8px 0 16px; }
 }
 .button:hover, button:hover { background:#0a4c9a; }
 
-input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea {
+input[type="text"], input[type="date"], input[type="time"], input[type="number"],input[type="submit"], select, textarea {
   width:100%; padding:10px; border:1px solid #cfd6e6; border-radius:10px; background:#fff;
   margin:6px 0 14px;
 }
@@ -33,3 +33,4 @@ tr:nth-child(even) td { background:#fafbfe; }
 .btn-approve:hover { background:#145c36; }
 .btn-reject { background:#dc3545; color:#fff; border-radius:8px; padding:6px 12px; }
 .btn-reject:hover { background:#a71d2a; }
+
