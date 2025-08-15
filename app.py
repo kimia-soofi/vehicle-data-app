@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 import io
 from config import ADMIN_USERNAME as CONF_USER, ADMIN_PASSWORD as CONF_PASS, CAR_MODELS
-
+from openpyxl import Workbook
 # ----- تنظیمات پایه
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
@@ -154,38 +154,53 @@ def admin_reject(model, fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود اکسل
-@app.route("/admin/download/<model>/<fname>", methods=["POST"])
+@app.route("/admin/download_excel/<model>/<fname>", methods=["POST"])
 def admin_download_excel(model, fname):
     if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
 
-    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    car_folder = os.path.join(DATA_FOLDER, model.upper())
+    fpath = os.path.join(car_folder, fname)
     if not os.path.isfile(fpath):
-        flash("فایل پیدا نشد ❌")
+        flash("فایل پیدا نشد")
         return redirect(url_for("admin_panel"))
 
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    df = pd.DataFrame(data.get("observations", []))
+    # ایجاد ورک‌بوک
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "فرم کامل"
 
-    eval_date = data["meta"].get("eval_date", "NA")
-    vin = data["meta"].get("vin", "NA")
-    evaluator = data["meta"].get("evaluator", "NA")
-    model_name = model.upper()
-    excel_name = f"{eval_date}_{model_name}_{vin}_{evaluator}.xlsx"
+    # اطلاعات پایه
+    meta = data["meta"]
+    ws.append(["نوع خودرو", meta["vehicle_type"]])
+    ws.append(["VIN", meta["vin"]])
+    ws.append(["تاریخ ارزیابی", meta["eval_date"]])
+    ws.append(["ساعت شروع", meta["start_time"]])
+    ws.append(["ساعت پایان", meta["end_time"]])
+    ws.append(["کیلومتر شروع", meta["start_km"]])
+    ws.append(["کیلومتر پایان", meta["end_km"]])
+    ws.append(["مسافت طی شده", meta["distance"]])
+    ws.append(["نام ارزیاب", meta["evaluator"]])
+    ws.append([])  # خط خالی
 
-    output = io.BytesIO()
-    df.to_excel(output, index=False, engine="openpyxl")
-    output.seek(0)
+    # جدول مشاهدات
+    ws.append(["ردیف","ایرادات فنی","شرایط بروز ایراد","کیلومتر بروز ایراد","نظر سرپرست"])
+    for r in data["observations"]:
+        ws.append([r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]])
 
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=excel_name,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # مسیر ذخیره در درایو D
+    save_dir = os.path.join("D:/اطلاعات خودرو", meta["vehicle_type"].upper())
+    os.makedirs(save_dir, exist_ok=True)
+    filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.xlsx'
+    save_path = os.path.join(save_dir, filename)
+    wb.save(save_path)
 
+    flash(f"فایل اکسل در {save_path} ذخیره شد ✅")
+    return redirect(url_for("admin_panel"))
+    
 # ----- خروج ادمین
 @app.route("/admin/logout")
 def admin_logout():
@@ -194,3 +209,4 @@ def admin_logout():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
