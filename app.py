@@ -3,7 +3,7 @@ import os, json, io, shutil
 from datetime import datetime
 import jdatetime
 from openpyxl import Workbook
-from config import ADMIN_USERNAME, ADMIN_PASSWORD, STAFF_USERNAME, STAFF_PASSWORD, CAR_MODELS
+from config import ADMIN_USERNAME, ADMIN_PASSWORD, STAFF_USERNAME, STAFF_PASSWORD, , CAR_MODELS_FILE, INITIAL_CAR_MODELS
 
 # ----- تنظیمات پایه
 app = Flask(__name__)
@@ -256,6 +256,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
