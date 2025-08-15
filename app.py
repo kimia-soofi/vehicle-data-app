@@ -191,15 +191,18 @@ def admin_download_excel(model, fname):
     for r in data["observations"]:
         ws.append([r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]])
 
-    # مسیر ذخیره در درایو D
-    save_dir = os.path.join("D:/اطلاعات خودرو", meta["vehicle_type"].upper())
-    os.makedirs(save_dir, exist_ok=True)
-    filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.xlsx'
-    save_path = os.path.join(save_dir, filename)
-    wb.save(save_path)
+     # ذخیره در حافظه و ارسال به مرورگر
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
 
-    flash(f"فایل اکسل در {save_path} ذخیره شد ✅")
-    return redirect(url_for("admin_panel"))
+    excel_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.xlsx'
+    return send_file(
+        output,
+        download_name=excel_filename,
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     
 # ----- خروج ادمین
 @app.route("/admin/logout")
@@ -209,4 +212,5 @@ def admin_logout():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
