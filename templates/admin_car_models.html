@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>مدیریت مدل‌های خودرو</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>مدیریت مدل‌های خودرو</h1>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
+      {% endif %}
+    {% endwith %}
+
+    <table>
+      <thead>
+        <tr>
+          <th>مدل خودرو</th>
+          <th>ویرایش</th>
+          <th>حذف</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in models %}
+          <tr>
+            <td>{{ m }}</td>
+            <td>
+              <form method="POST">
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" name="old_name" value="{{ m }}">
+                <input type="text" name="name" value="{{ m }}">
+                <button type="submit" class="button">ویرایش</button>
+              </form>
+            </td>
+            <td>
+              <form method="POST">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="name" value="{{ m }}">
+                <button type="submit" class="button" onclick="return confirm('آیا مدل حذف شود؟')">حذف</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>اضافه کردن مدل جدید</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="add">
+      <input type="text" name="name" placeholder="نام مدل جدید">
+      <button type="submit" class="button">اضافه کردن</button>
+    </form>
+
+    <div style="margin-top:16px;">
+      <a class="button" href="{{ url_for('admin_panel') }}">بازگشت به پنل</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>
