@@ -31,7 +31,7 @@
         <table>
           <thead>
             <tr>
-              <th>تاریخ/زمان ثبت</th>
+              <th>تاریخ/زمان ثبت (شمسی)</th>
               <th>VIN</th>
               <th>مسافت</th>
               <th>نام ارزیاب</th>
@@ -45,7 +45,8 @@
           <tbody>
           {% for rec in records %}
             <tr>
-              <td>{{ rec.meta.submitted_at }}</td>
+              <!-- نمایش شمسی از submitted_at با JS -->
+              <td><span class="dt-iso" data-iso="{{ rec.meta.submitted_at }}"></span></td>
               <td>{{ rec.meta.vin }}</td>
               <td>{{ rec.meta.distance }}</td>
               <td>{{ rec.meta.evaluator }}</td>
@@ -54,7 +55,7 @@
                 <details>
                   <summary>نمایش</summary>
                   <div style="padding:8px;">
-                    <div><strong>تاریخ ارزیابی:</strong> {{ rec.meta.eval_date }}</div>
+                    <div><strong>تاریخ ارزیابی (شمسی):</strong> {{ rec.meta.eval_date }}</div>
                     <div><strong>ساعت:</strong> {{ rec.meta.start_time }} تا {{ rec.meta.end_time }}</div>
                     <div><strong>کیلومتر:</strong> {{ rec.meta.start_km }} → {{ rec.meta.end_km }}</div>
                     <hr>
@@ -119,5 +120,23 @@
     {% endfor %}
   </div>
 </div>
+
+<!-- Persian-Date برای تبدیل نمایش -->
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.0.6/dist/persian-date.js"></script>
+<script>
+// تبدیل زمان ISO به نمایش شمسی (YYYY/MM/DD HH:mm)
+document.querySelectorAll('.dt-iso').forEach(function(el){
+  var iso = el.getAttribute('data-iso'); // مثل 2025-08-15T11:22:33
+  if (!iso) return;
+  var d = new Date(iso);
+  try {
+    var p = new persianDate(d);
+    el.textContent = p.format('YYYY/MM/DD HH:mm');
+  } catch(e) {
+    // اگر تبدیل به هر دلیل نشد، همان ISO را نشان بده
+    el.textContent = iso;
+  }
+});
+</script>
 </body>
 </html>
