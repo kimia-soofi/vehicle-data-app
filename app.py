@@ -49,6 +49,8 @@ def staff_login():
 # ----- فرم همکاران
 @app.route("/staff", methods=["GET", "POST"])
 def staff_form():
+    if not session.get("staff_logged_in"):
+        return redirect(url_for("staff_login"))
     if request.method == "POST":
         vehicle_type = request.form.get("vehicle_type")
         vin = request.form.get("vin")
@@ -254,6 +256,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
