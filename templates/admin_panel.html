@@ -6,91 +6,100 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <div class="actions" style="justify-content:space-between;">
-        <h1>پنل ادمین</h1>
-        <div>
-          <a class="button" href="{{ url_for('admin_logout') }}">خروج</a>
-        </div>
-      </div>
-
-      {% with messages = get_flashed_messages() %}
-        {% if messages %}
-          <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
-        {% endif %}
-      {% endwith %}
-
-      {% for model, records in all_data.items() %}
-        <h2>مدل: {{ model }}</h2>
-        {% if records %}
-          <table>
-            <thead>
-              <tr>
-                <th>تاریخ/زمان ثبت</th>
-                <th>VIN</th>
-                <th>مسافت</th>
-                <th>نام ارزیاب</th>
-                <th>تعداد سطرها</th>
-                <th>جزئیات</th>
-                <th>حذف</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for rec in records %}
-                <tr>
-                  <td>{{ rec.meta.submitted_at }}</td>
-                  <td>{{ rec.meta.vin }}</td>
-                  <td>{{ rec.meta.distance }}</td>
-                  <td>{{ rec.meta.evaluator }}</td>
-                  <td>{{ rec.observations|length }}</td>
-                  <td>
-                    <details>
-                      <summary>نمایش</summary>
-                      <div style="padding:8px;">
-                        <div><strong>تاریخ ارزیابی:</strong> {{ rec.meta.eval_date }}</div>
-                        <div><strong>ساعت:</strong> {{ rec.meta.start_time }} تا {{ rec.meta.end_time }}</div>
-                        <div><strong>کیلومتر:</strong> {{ rec.meta.start_km }} → {{ rec.meta.end_km }}</div>
-                        <hr>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>ردیف</th>
-                              <th>ایرادات فنی مشاهده شده</th>
-                              <th>شرایط بروز ایراد</th>
-                              <th>کیلومتر بروز ایراد</th>
-                              <th>نظر سرپرست تیم ارزیابی</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {% for r in rec.observations %}
-                              <tr>
-                                <td>{{ r.row }}</td>
-                                <td>{{ r.issue }}</td>
-                                <td>{{ r.condition }}</td>
-                                <td>{{ r.km }}</td>
-                                <td>{{ r.supervisor_comment }}</td>
-                              </tr>
-                            {% endfor %}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  </td>
-                  <td>
-                    <form method="POST" action="{{ url_for('admin_delete', model=rec._model, fname=rec._filename) }}">
-                      <button type="submit" onclick="return confirm('حذف این رکورد؟')">حذف</button>
-                    </form>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% else %}
-          <div class="card">رکوردی برای این مدل ثبت نشده است.</div>
-        {% endif %}
-      {% endfor %}
+<div class="container">
+  <div class="card">
+    <div class="actions" style="justify-content:space-between;">
+      <h1>پنل ادمین</h1>
+      <div><a class="button" href="{{ url_for('admin_logout') }}">خروج</a></div>
     </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
+      {% endif %}
+    {% endwith %}
+
+    {% for model, records in all_data.items() %}
+      <h2>مدل: {{ model }}</h2>
+      {% if records %}
+      <table>
+        <thead>
+          <tr>
+            <th>تاریخ/زمان ثبت</th>
+            <th>VIN</th>
+            <th>مسافت</th>
+            <th>نام ارزیاب</th>
+            <th>تعداد سطرها</th>
+            <th>جزئیات</th>
+            <th>وضعیت</th>
+            <th>عملیات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in records %}
+          <tr>
+            <td>{{ rec.meta.submitted_at }}</td>
+            <td>{{ rec.meta.vin }}</td>
+            <td>{{ rec.meta.distance }}</td>
+            <td>{{ rec.meta.evaluator }}</td>
+            <td>{{ rec.observations|length }}</td>
+            <td>
+              <details>
+                <summary>نمایش</summary>
+                <div style="padding:8px;">
+                  <div><strong>تاریخ ارزیابی:</strong> {{ rec.meta.eval_date }}</div>
+                  <div><strong>ساعت:</strong> {{ rec.meta.start_time }} تا {{ rec.meta.end_time }}</div>
+                  <div><strong>کیلومتر:</strong> {{ rec.meta.start_km }} → {{ rec.meta.end_km }}</div>
+                  <hr>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ردیف</th>
+                        <th>ایرادات فنی</th>
+                        <th>شرایط</th>
+                        <th>کیلومتر</th>
+                        <th>نظر سرپرست</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in rec.observations %}
+                      <tr>
+                        <td>{{ r.row }}</td>
+                        <td>{{ r.issue }}</td>
+                        <td>{{ r.condition }}</td>
+                        <td>{{ r.km }}</td>
+                        <td>{{ r.supervisor_comment }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </td>
+            <td>{{ rec.meta.status }}</td>
+            <td class="actions">
+              {% if rec.meta.status == 'pending' %}
+              <form method="POST" action="{{ url_for('admin_approve', model=rec._model, fname=rec._filename) }}">
+                <button class="btn-approve">تایید</button>
+              </form>
+              <form method="POST" action="{{ url_for('admin_reject', model=rec._model, fname=rec._filename) }}">
+                <button class="btn-reject">رد</button>
+              </form>
+              {% elif rec.meta.status == 'approved' %}
+              <form method="POST" action="{{ url_for('admin_download_excel', model=rec._model, fname=rec._filename) }}">
+                <button class="button">دانلود اکسل</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="card">رکوردی برای این مدل ثبت نشده است.</div>
+      {% endif %}
+    {% endfor %}
   </div>
+</div>
 </body>
 </html>
