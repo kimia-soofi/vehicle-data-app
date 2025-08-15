@@ -16,6 +16,12 @@
     <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
   {% endif %}
 {% endwith %}
+<div class="actions" style="justify-content:space-between; align-items:center;">
+  <h1>ثبت مشاهدات روزانه ارزیابی</h1>
+  <div>
+    <a class="button" href="{{ url_for('staff_logout') }}">خروج</a>
+  </div>
+</div>
 
 <form id="eval-form" method="POST">
 <div class="grid-2">
@@ -140,3 +146,4 @@ document.getElementById('eval-form').addEventListener('submit',function(e){
 </script>
 </body>
 </html>
+
