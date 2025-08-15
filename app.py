@@ -1,13 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 import os, json
 from datetime import datetime
+import pandas as pd
+import io
 from config import ADMIN_USERNAME as CONF_USER, ADMIN_PASSWORD as CONF_PASS, CAR_MODELS
 
 # ----- تنظیمات پایه
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
 
-# اگر روی رندر یا هر هاست دیگری ENV ست کردی، از آن استفاده می‌شود
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", CONF_USER)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", CONF_PASS)
 
@@ -19,33 +20,28 @@ os.makedirs(DATA_FOLDER, exist_ok=True)
 def index():
     return render_template("index.html")
 
-# ----- فرم همکاران: ثبت مشاهدات روزانه ارزیابی
+# ----- فرم همکاران
 @app.route("/staff", methods=["GET", "POST"])
 def staff_form():
     if request.method == "POST":
-        # اطلاعات پایه
-        vehicle_type = request.form.get("vehicle_type")              # نوع خودرو (از منو)
-        vin = request.form.get("vin")                                 # شماره شاسی
-        eval_date = request.form.get("eval_date")                     # تاریخ انجام ارزیابی
-        start_time = request.form.get("start_time")                   # ساعت شروع
-        end_time = request.form.get("end_time")                       # ساعت پایان
-        start_km = request.form.get("start_km")                       # کیلومتر شروع
-        end_km = request.form.get("end_km")                           # کیلومتر پایان
-        distance = request.form.get("distance")                       # مسافت طی شده (محاسبه/ورودی)
-        evaluator = request.form.get("evaluator")                     # نام ارزیاب
-
-        # جدول ردیف‌ها به‌صورت JSON از input مخفی می‌آید
+        vehicle_type = request.form.get("vehicle_type")
+        vin = request.form.get("vin")
+        eval_date = request.form.get("eval_date")
+        start_time = request.form.get("start_time")
+        end_time = request.form.get("end_time")
+        start_km = request.form.get("start_km")
+        end_km = request.form.get("end_km")
+        distance = request.form.get("distance")
+        evaluator = request.form.get("evaluator")
         rows_json = request.form.get("rows_json", "[]")
         try:
             rows = json.loads(rows_json)
         except json.JSONDecodeError:
             rows = []
 
-        # ساخت پوشه مخصوص مدل خودرو
         car_folder = os.path.join(DATA_FOLDER, vehicle_type.upper())
         os.makedirs(car_folder, exist_ok=True)
 
-        # ذخیره فایل
         filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         payload = {
             "meta": {
@@ -58,7 +54,8 @@ def staff_form():
                 "end_km": end_km,
                 "distance": distance,
                 "evaluator": evaluator,
-                "submitted_at": datetime.now().isoformat(timespec="seconds")
+                "submitted_at": datetime.now().isoformat(timespec="seconds"),
+                "status": "pending"
             },
             "observations": rows
         }
@@ -102,10 +99,10 @@ def admin_panel():
                         data["_filename"] = fname
                         data["_model"] = model
                         records.append(data)
-        all_data[model] = list(reversed(records))  # جدیدترین بالا
+        all_data[model] = list(reversed(records))
     return render_template("admin_panel.html", all_data=all_data)
 
-# ----- حذف رکورد (ادمین)
+# ----- حذف رکورد
 @app.route("/admin/delete/<model>/<fname>", methods=["POST"])
 def admin_delete(model, fname):
     if not session.get("admin_logged_in"):
@@ -118,6 +115,77 @@ def admin_delete(model, fname):
         flash("فایل پیدا نشد")
     return redirect(url_for("admin_panel"))
 
+# ----- تأیید رکورد
+@app.route("/admin/approve/<model>/<fname>", methods=["POST"])
+def admin_approve(model, fname):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
+    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    if os.path.isfile(fpath):
+        with open(fpath, "r+", encoding="utf-8") as f:
+            data = json.load(f)
+            data["meta"]["status"] = "approved"
+            f.seek(0)
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.truncate()
+        flash("رکورد تأیید شد ✅")
+    else:
+        flash("فایل پیدا نشد ❌")
+    return redirect(url_for("admin_panel"))
+
+# ----- رد رکورد
+@app.route("/admin/reject/<model>/<fname>", methods=["POST"])
+def admin_reject(model, fname):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
+    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    if os.path.isfile(fpath):
+        with open(fpath, "r+", encoding="utf-8") as f:
+            data = json.load(f)
+            data["meta"]["status"] = "rejected"
+            f.seek(0)
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.truncate()
+        flash("رکورد رد شد ❌")
+    else:
+        flash("فایل پیدا نشد ❌")
+    return redirect(url_for("admin_panel"))
+
+# ----- دانلود اکسل
+@app.route("/admin/download/<model>/<fname>", methods=["POST"])
+def admin_download_excel(model, fname):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
+
+    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    if not os.path.isfile(fpath):
+        flash("فایل پیدا نشد ❌")
+        return redirect(url_for("admin_panel"))
+
+    with open(fpath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    df = pd.DataFrame(data.get("observations", []))
+
+    eval_date = data["meta"].get("eval_date", "NA")
+    vin = data["meta"].get("vin", "NA")
+    evaluator = data["meta"].get("evaluator", "NA")
+    model_name = model.upper()
+    excel_name = f"{eval_date}_{model_name}_{vin}_{evaluator}.xlsx"
+
+    output = io.BytesIO()
+    df.to_excel(output, index=False, engine="openpyxl")
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=excel_name,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
 # ----- خروج ادمین
 @app.route("/admin/logout")
 def admin_logout():
@@ -125,5 +193,4 @@ def admin_logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    # در دیپلوی تولیدی debug را False بگذار
     app.run(host="0.0.0.0", port=5000, debug=True)
