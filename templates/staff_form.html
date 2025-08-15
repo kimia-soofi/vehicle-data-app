@@ -1,21 +1,26 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>ثبت مشاهدات روزانه ارزیابی</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+  <!-- Jalaali Datepicker -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='jalaali-datepicker.min.css') }}">
 </head>
 <body>
-<div class="container">
+  <div class="container">
     <div class="card">
-        <h1>ثبت مشاهدات روزانه ارزیابی</h1>
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
-          {% endif %}
-        {% endwith %}
-        <form id="eval-form" method="POST">
+      <h1>ثبت مشاهدات روزانه ارزیابی</h1>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash">{% for m in messages %}{{ m }}{% endfor %}</div>
+        {% endif %}
+      {% endwith %}
+
+      <form id="eval-form" method="POST">
+        <div class="grid-2">
+          <div>
             <label>نوع خودرو</label>
             <select name="vehicle_type" required>
               <option value="">انتخاب کنید…</option>
@@ -23,53 +28,161 @@
                 <option value="{{ m }}">{{ m }}</option>
               {% endfor %}
             </select>
-
+          </div>
+          <div>
             <label>شماره شاسی (VIN)</label>
             <input type="text" name="vin" required />
+          </div>
 
+          <div>
             <label>تاریخ انجام ارزیابی</label>
-            <input type="text" id="eval_date" name="eval_date" required />
-
+            <input type="text" name="eval_date" id="eval_date" required />
+          </div>
+          <div>
             <label>ساعت شروع</label>
             <input type="time" name="start_time" required />
+          </div>
 
+          <div>
             <label>ساعت پایان</label>
             <input type="time" name="end_time" required />
-
+          </div>
+          <div>
             <label>کیلومتر شروع</label>
             <input type="number" step="0.1" name="start_km" id="start_km" required />
+          </div>
 
+          <div>
             <label>کیلومتر پایان</label>
             <input type="number" step="0.1" name="end_km" id="end_km" required />
-
-            <label>مسافت طی شده</label>
+          </div>
+          <div>
+            <label>مسافت طی شده (اتوماتیک محاسبه می‌شود؛ قابل ویرایش)</label>
             <input type="number" step="0.1" name="distance" id="distance" required />
+          </div>
+        </div>
 
-            <label>نام ارزیاب</label>
-            <input type="text" name="evaluator" required />
+        <h2 style="margin-top:8px;">جدول مشاهدات</h2>
+        <div class="actions" style="margin:8px 0;">
+          <button type="button" id="add-row">افزودن سطر</button>
+        </div>
 
-            <input type="hidden" name="rows_json" id="rows_json" />
+        <div style="overflow-x:auto;">
+          <table id="obs-table">
+            <thead>
+              <tr>
+                <th style="width:60px;">ردیف</th>
+                <th>ایرادات فنی مشاهده شده</th>
+                <th>شرایط بروز ایراد</th>
+                <th style="width:150px;">کیلومتر بروز ایراد</th>
+                <th>نظر سرپرست تیم ارزیابی</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
 
-            <div class="actions">
-                <button type="submit">ذخیره فرم</button>
-                <a class="button" href="{{ url_for('index') }}">بازگشت</a>
-            </div>
-        </form>
+        <div style="margin-top:16px;">
+          <label>نام ارزیاب</label>
+          <input type="text" name="evaluator" required />
+        </div>
+
+        <input type="hidden" name="rows_json" id="rows_json" />
+
+        <div class="actions" style="margin-top:12px;">
+          <button type="submit">ذخیره فرم</button>
+          <a class="button" href="{{ url_for('index') }}">بازگشت</a>
+        </div>
+      </form>
     </div>
-</div>
+  </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/persian-date/dist/persian-date.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/persian-datepicker/dist/js/persian-datepicker.min.js"></script>
+<script src="{{ url_for('static', filename='jalaali-datepicker.min.js') }}"></script>
+<script src="{{ url_for('static', filename='jquery.min.js') }}"></script>
+
 <script>
-$(document).ready(function(){
-    $("#eval_date").persianDatepicker({
-        format: 'YYYY/MM/DD',
-        autoClose: true,
-        initialValue: true,
-        calendarType: 'persian'
+  // راه‌اندازی تاریخ شمسی
+  $(function(){
+    $('#eval_date').persianDatepicker({
+      format: 'YYYY/MM/DD',
+      initialValueType: 'persian'
     });
-});
+  });
+
+  // محاسبه خودکار مسافت
+  function recalcDistance() {
+    const s = parseFloat(document.getElementById('start_km').value || 0);
+    const e = parseFloat(document.getElementById('end_km').value || 0);
+    const d = (isNaN(e - s)) ? "" : (e - s);
+    const dist = document.getElementById('distance');
+    dist.value = d !== "" ? Number(d.toFixed(1)) : "";
+  }
+  document.getElementById('start_km').addEventListener('input', recalcDistance);
+  document.getElementById('end_km').addEventListener('input', recalcDistance);
+
+  // جدول پویا
+  const tbody = document.querySelector('#obs-table tbody');
+  const addBtn = document.getElementById('add-row');
+
+  function buildRow(index) {
+    const tr = document.createElement('tr');
+
+    const tdIdx = document.createElement('td');
+    tdIdx.textContent = index + 1;
+
+    const tdIssue = document.createElement('td');
+    const inIssue = document.createElement('textarea'); inIssue.rows = 2;
+
+    const tdCond = document.createElement('td');
+    const inCond = document.createElement('textarea'); inCond.rows = 2;
+
+    const tdKm = document.createElement('td');
+    const inKm = document.createElement('input'); inKm.type='number'; inKm.step='0.1';
+
+    const tdSup = document.createElement('td');
+    const inSup = document.createElement('textarea'); inSup.rows = 2;
+
+    tdIssue.appendChild(inIssue);
+    tdCond.appendChild(inCond);
+    tdKm.appendChild(inKm);
+    tdSup.appendChild(inSup);
+
+    tr.appendChild(tdIdx);
+    tr.appendChild(tdIssue);
+    tr.appendChild(tdCond);
+    tr.appendChild(tdKm);
+    tr.appendChild(tdSup);
+
+    return tr;
+  }
+
+  function addRow() {
+    const row = buildRow(tbody.children.length);
+    tbody.appendChild(row);
+    renumber();
+  }
+  function renumber() {
+    [...tbody.children].forEach((tr,i)=>tr.children[0].textContent=i+1);
+  }
+
+  addRow();
+  addBtn.addEventListener('click', addRow);
+
+  // قبل از ارسال فرم، جدول را به JSON تبدیل کن
+  document.getElementById('eval-form').addEventListener('submit', function(e){
+    const rows = [];
+    [...tbody.children].forEach((tr)=>{
+      rows.push({
+        row: parseInt(tr.children[0].textContent,10),
+        issue: tr.children[1].querySelector('textarea').value.trim(),
+        condition: tr.children[2].querySelector('textarea').value.trim(),
+        km: tr.children[3].querySelector('input').value,
+        supervisor_comment: tr.children[4].querySelector('textarea').value.trim()
+      });
+    });
+    document.getElementById('rows_json').value = JSON.stringify(rows);
+  });
 </script>
 </body>
 </html>
