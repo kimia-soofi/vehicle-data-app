@@ -33,5 +33,3 @@ tr:nth-child(even) td { background:#fafbfe; }
 .btn-approve:hover { background:#145c36; }
 .btn-reject { background:#dc3545; color:#fff; border-radius:8px; padding:6px 12px; }
 .btn-reject:hover { background:#a71d2a; }
-
-
