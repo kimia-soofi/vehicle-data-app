@@ -155,7 +155,6 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-# ----- دانلود PDF
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model,fname):
     if not session.get("admin_logged_in"): return redirect(url_for("admin_login"))
@@ -164,10 +163,12 @@ def download_pdf(model,fname):
         flash("فایل پیدا نشد ❌")
         return redirect(url_for("admin_panel"))
 
-    with open(fpath,"r",encoding="utf-8") as f: data=json.load(f)
+    with open(fpath,"r",encoding="utf-8") as f:
+        data = json.load(f)
+
     pdf = FPDF()
     pdf.add_page()
-    pdf.add_font("Vazir","",os.path.join("static","Vazirmatn-Regular.ttf"), uni=True)
+    pdf.add_font("Vazir","",os.path.join("static","Vazir-Regular.ttf"), uni=True)
     pdf.set_font("Vazir","",14)
     meta = data["meta"]
 
@@ -195,11 +196,11 @@ def download_pdf(model,fname):
         pdf.cell(30,8,str(r["km"]),1,0,"C")
         pdf.cell(30,8,r["supervisor_comment"],1,1,"C")
 
-    output = io.BytesIO()
-    pdf.output(output)
-    output.seek(0)
+    # اینجا به جای output(BytesIO) از dest='S' استفاده می‌کنیم
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    pdf_io = io.BytesIO(pdf_bytes)
     pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
-    return send_file(output, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
 
 # ----- مدیریت مدل‌ها
@@ -262,6 +263,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
