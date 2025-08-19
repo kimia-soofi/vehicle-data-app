@@ -124,7 +124,7 @@
               </td>
               <td>
                 {% if rec.status=="approved" %}
-                  <form method="POST" action="{{ url_for('admin_download_pdf', model=rec._model, fname=rec._filename) }}">
+                  <form method="POST" action="{{ url_for('download_pdf', model=rec._model, fname=rec._filename) }}">
                     <button class="btn-pdf">دانلود PDF</button>
                   </form>
                 {% endif %}
@@ -146,3 +146,4 @@
 </div>
 </body>
 </html>
+
