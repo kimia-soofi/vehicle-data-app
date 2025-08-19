@@ -155,52 +155,46 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-@app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
-def download_pdf(model,fname):
-    if not session.get("admin_logged_in"): return redirect(url_for("admin_login"))
-    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
-    if not os.path.isfile(fpath):
-        flash("فایل پیدا نشد ❌")
-        return redirect(url_for("admin_panel"))
+pdf = FPDF()
+pdf.add_page()
+# اضافه کردن فونت فارسی (Vazir) که باید در مسیر static باشد
+pdf.add_font("Vazir", "", os.path.join("static", "Vazir-Regular.ttf"), uni=True)
+pdf.set_font("Vazir", "", 14)
 
-    with open(fpath,"r",encoding="utf-8") as f:
-        data = json.load(f)
+meta = data["meta"]
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font("Vazir","",os.path.join("static","Vazirmatn-Regular.ttf"), uni=True)
-    pdf.set_font("Vazir","",14)
-    meta = data["meta"]
+pdf.cell(0, 10, "فرم ارزیابی خودرو", ln=True, align="C")
+pdf.ln(5)
+for k, v in meta.items():
+    pdf.cell(0, 8, f"{k}: {v}", ln=True)
 
-    pdf.cell(0,10,f"فرم ارزیابی خودرو", ln=True, align="C")
-    pdf.ln(5)
-    for k,v in meta.items():
-        pdf.cell(0,8,f"{k}: {v}", ln=True)
-    pdf.ln(5)
-    pdf.cell(0,8,"جدول مشاهدات:", ln=True)
-    pdf.ln(2)
+pdf.ln(5)
+pdf.cell(0, 8, "جدول مشاهدات:", ln=True)
+pdf.ln(2)
 
-    pdf.set_font("Vazir","",12)
-    pdf.set_fill_color(220,220,220)
-    # table header
-    pdf.cell(10,8,"ردیف",1,0,"C",1)
-    pdf.cell(60,8,"ایرادات فنی",1,0,"C",1)
-    pdf.cell(60,8,"شرایط بروز ایراد",1,0,"C",1)
-    pdf.cell(30,8,"کیلومتر",1,0,"C",1)
-    pdf.cell(30,8,"نظر سرپرست",1,1,"C",1)
-    # table rows
-    for r in data["observations"]:
-        pdf.cell(10,8,str(r["row"]),1,0,"C")
-        pdf.cell(60,8,r["issue"],1,0,"C")
-        pdf.cell(60,8,r["condition"],1,0,"C")
-        pdf.cell(30,8,str(r["km"]),1,0,"C")
-        pdf.cell(30,8,r["supervisor_comment"],1,1,"C")
+pdf.set_font("Vazir", "", 12)
+pdf.set_fill_color(220, 220, 220)
+# سر جدول
+pdf.cell(10, 8, "ردیف", 1, 0, "C", 1)
+pdf.cell(60, 8, "ایرادات فنی", 1, 0, "C", 1)
+pdf.cell(60, 8, "شرایط بروز ایراد", 1, 0, "C", 1)
+pdf.cell(30, 8, "کیلومتر", 1, 0, "C", 1)
+pdf.cell(30, 8, "نظر سرپرست", 1, 1, "C", 1)
 
-    # اینجا به جای output(BytesIO) از dest='S' استفاده می‌کنیم
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
-    pdf_io = io.BytesIO(pdf_bytes)
-    pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
-    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+# ردیف‌ها
+for r in data["observations"]:
+    pdf.cell(10, 8, str(r["row"]), 1, 0, "C")
+    pdf.cell(60, 8, r["issue"], 1, 0, "C")
+    pdf.cell(60, 8, r["condition"], 1, 0, "C")
+    pdf.cell(30, 8, str(r["km"]), 1, 0, "C")
+    pdf.cell(30, 8, r["supervisor_comment"], 1, 1, "C")
+
+# ذخیره در BytesIO
+pdf_io = io.BytesIO()
+pdf.output(pdf_io)
+pdf_io.seek(0)
+return send_file(pdf_io, download_name="form.pdf", as_attachment=True, mimetype="application/pdf")
+
 
 
 # ----- مدیریت مدل‌ها
@@ -263,6 +257,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
