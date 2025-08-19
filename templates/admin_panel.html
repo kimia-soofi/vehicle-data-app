@@ -3,12 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <title>پنل ادمین</title>
+  <link href="https://cdn.jsdelivr.net/npm/vazirmatn@33.003/index.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body { font-family: Vazirmatn, sans-serif; background: #f8f9fa; }
+    .container { max-width: 95%; margin: 20px auto; }
+    .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 3px 8px rgba(0,0,0,0.1); }
+    h1 { margin-bottom: 15px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 14px; }
+    th { background: #007BFF; color: white; }
+    .button, button { 
+      background: #007BFF; 
+      color: white; 
+      border: none; 
+      padding: 8px 14px; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-family: Vazirmatn, sans-serif;
+    }
+    .button:hover, button:hover { background: #0056b3; }
+    .btn-approve { background: #28a745; }
+    .btn-reject { background: #dc3545; }
+    .btn-pdf { background: #6f42c1; }
+    .flash { background: #ffeeba; padding: 10px; border-radius: 6px; margin: 10px 0; }
+    details { text-align: right; }
+  </style>
 </head>
 <body>
 <div class="container">
   <div class="card">
-    <div class="actions" style="justify-content:space-between;">
+    <div class="actions" style="justify-content:space-between; display:flex; align-items:center;">
       <h1>پنل ادمین</h1>
       <div>
         <a class="button" href="{{ url_for('admin_car_models') }}">مدیریت مدل‌ها</a>
@@ -31,14 +56,14 @@
         <table>
           <thead>
             <tr>
-              <th>تاریخ/زمان ثبت</th>
+              <th>تاریخ ثبت</th>
               <th>VIN</th>
               <th>مسافت</th>
               <th>نام ارزیاب</th>
               <th>تعداد سطرها</th>
               <th>جزئیات</th>
               <th>تایید/رد</th>
-              <th>دانلود اکسل</th>
+              <th>دانلود PDF</th>
               <th>حذف</th>
             </tr>
           </thead>
@@ -53,7 +78,7 @@
               <td>
                 <details>
                   <summary>نمایش</summary>
-                  <div style="padding:8px;">
+                  <div style="padding:8px; text-align:right;">
                     <div><strong>تاریخ ارزیابی:</strong> {{ rec.meta.eval_date }}</div>
                     <div><strong>ساعت:</strong> {{ rec.meta.start_time }} تا {{ rec.meta.end_time }}</div>
                     <div><strong>کیلومتر:</strong> {{ rec.meta.start_km }} → {{ rec.meta.end_km }}</div>
@@ -65,7 +90,7 @@
                           <th>ایرادات فنی مشاهده شده</th>
                           <th>شرایط بروز ایراد</th>
                           <th>کیلومتر بروز ایراد</th>
-                          <th>نظر سرپرست تیم ارزیابی</th>
+                          <th>نظر سرپرست تیم</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -99,8 +124,8 @@
               </td>
               <td>
                 {% if rec.status=="approved" %}
-                  <form method="POST" action="{{ url_for('admin_download_excel', model=rec._model, fname=rec._filename) }}">
-                    <button class="button">دانلود اکسل</button>
+                  <form method="POST" action="{{ url_for('admin_download_pdf', model=rec._model, fname=rec._filename) }}">
+                    <button class="btn-pdf">دانلود PDF</button>
                   </form>
                 {% endif %}
               </td>
