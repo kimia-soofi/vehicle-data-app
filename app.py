@@ -155,9 +155,17 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
+from flask import send_file
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+from bidi.algorithm import get_display
+import io, os, json
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
-    if not session.get("admin_logged_in"): 
+    if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
 
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
@@ -168,50 +176,66 @@ def download_pdf(model, fname):
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font("Vazir", "", os.path.join("static", "Vazirmatn-Regular.ttf"), uni=True)
-    pdf.set_font("Vazir", "", 14)
-
     meta = data["meta"]
-    pdf.cell(0, 10, "فرم ارزیابی خودرو", ln=True, align="C")
-    pdf.ln(5)
+    observations = data["observations"]
+
+    # ایجاد PDF در حافظه
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    # اضافه کردن فونت فارسی
+    pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static","Vazirmatn-Regular.ttf")))
+    pdf.setFont("Vazir", 14)
+
+    # موقعیت اولیه
+    y = height - 50
+    pdf.drawRightString(width - 50, y, get_display("فرم ارزیابی خودرو"))
+    y -= 30
+
+    # اطلاعات متا
+    pdf.setFont("Vazir", 12)
     for k, v in meta.items():
-        pdf.multi_cell(0, 8, f"{k}: {v}")
-    pdf.ln(5)
-    pdf.cell(0, 8, "جدول مشاهدات:", ln=True)
-    pdf.ln(2)
+        line = f"{k}: {v}"
+        pdf.drawRightString(width - 50, y, get_display(line))
+        y -= 20
 
-    pdf.set_font("Vazir", "", 12)
-    pdf.set_fill_color(220, 220, 220)
+    y -= 10
+    pdf.drawRightString(width - 50, y, get_display("جدول مشاهدات:"))
+    y -= 20
 
-    # table header
-    pdf.cell(10, 10, "ردیف", 1, 0, "C", 1)
-    pdf.cell(60, 10, "ایرادات فنی", 1, 0, "C", 1)
-    pdf.cell(60, 10, "شرایط بروز ایراد", 1, 0, "C", 1)
-    pdf.cell(30, 10, "کیلومتر", 1, 0, "C", 1)
-    pdf.cell(30, 10, "نظر سرپرست", 1, 1, "C", 1)
+    # جدول header
+    col_widths = [40, 120, 120, 60, 80]  # اندازه ستون‌ها
+    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
+    x_positions = [width - sum(col_widths[:i+1]) - 50 for i in range(len(col_widths))]
 
-    # table rows
-    for r in data["observations"]:
-        pdf.cell(10, 10, str(r["row"]), 1, 0, "C")
-        pdf.multi_cell(60, 10, r["issue"], 1, "C")
-        x = pdf.get_x()
-        y = pdf.get_y() - 10
-        pdf.set_xy(x + 60, y)
-        pdf.multi_cell(60, 10, r["condition"], 1, "C")
-        x = pdf.get_x()
-        y = pdf.get_y() - 10
-        pdf.set_xy(x + 120, y)
-        pdf.cell(30, 10, str(r["km"]), 1, 0, "C")
-        pdf.cell(30, 10, r["supervisor_comment"], 1, 1, "C")
+    pdf.setFont("Vazir", 11)
+    pdf.setFillColorRGB(0.8,0.8,0.8)
+    y_start = y
+    for i, header in enumerate(headers):
+        pdf.rect(x_positions[i], y-18, col_widths[i], 20, fill=1)
+        pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-5, get_display(header))
+    y -= 25
+    pdf.setFillColorRGB(0,0,0)
 
-    # اینجا PDF را به صورت رشته باینری دریافت می‌کنیم
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
-    pdf_io = io.BytesIO(pdf_bytes)
+    # جدول rows
+    for r in observations:
+        if y < 50:  # ایجاد صفحه جدید
+            pdf.showPage()
+            pdf.setFont("Vazir", 11)
+            y = height - 50
+        row_data = [str(r["row"]), r["issue"], r["condition"], str(r["km"]), r["supervisor_comment"]]
+        for i, cell in enumerate(row_data):
+            pdf.rect(x_positions[i], y-18, col_widths[i], 20)
+            pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-5, get_display(cell))
+        y -= 25
+
+    pdf.save()
+    buffer.seek(0)
 
     pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
-    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+    return send_file(buffer, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -277,6 +301,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
