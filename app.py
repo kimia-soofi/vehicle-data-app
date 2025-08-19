@@ -4,7 +4,10 @@ from datetime import datetime
 import jdatetime
 from openpyxl import Workbook
 from config import ADMIN_USERNAME, ADMIN_PASSWORD, STAFF_USERNAME, STAFF_PASSWORD, CAR_MODELS_FILE, INITIAL_CAR_MODELS
-
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 # ----- تنظیمات پایه
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
@@ -154,47 +157,56 @@ def admin_reject(model,fname):
         flash("رکورد رد شد ❌")
     return redirect(url_for("admin_panel"))
 
-# ----- دانلود اکسل کل فرم
-@app.route("/admin/download_excel/<model>/<fname>", methods=["POST"])
-def admin_download_excel(model,fname):
+# ----- دانلود PDF کل فرم
+@app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
+def admin_download_pdf(model, fname):
     if not session.get("admin_logged_in"): return redirect(url_for("admin_login"))
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
     if not os.path.isfile(fpath):
         flash("فایل پیدا نشد")
         return redirect(url_for("admin_panel"))
 
-    with open(fpath,"r",encoding="utf-8") as f: data=json.load(f)
-    wb = Workbook()
-    ws = wb.active
-    ws.title="فرم کامل"
+    with open(fpath, "r", encoding="utf-8") as f: 
+        data = json.load(f)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=20)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # متادیتا
     meta = data["meta"]
+    elements.append(Paragraph(f"<b>نوع خودرو:</b> {meta['vehicle_type']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>VIN:</b> {meta['vin']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>تاریخ ارزیابی:</b> {meta['eval_date']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>ساعت شروع:</b> {meta['start_time']}  <b>ساعت پایان:</b> {meta['end_time']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>کیلومتر شروع:</b> {meta['start_km']}  <b>کیلومتر پایان:</b> {meta['end_km']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>مسافت طی شده:</b> {meta['distance']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>نام ارزیاب:</b> {meta['evaluator']}", styles['Normal']))
+    elements.append(Paragraph(f"<b>زمان ارسال:</b> {meta['submitted_at']}", styles['Normal']))
+    elements.append(Spacer(1, 12))
 
-    ws.append(["نوع خودرو", meta["vehicle_type"]])
-    ws.append(["VIN", meta["vin"]])
-    ws.append(["تاریخ ارزیابی", meta["eval_date"]])
-    ws.append(["ساعت شروع", meta["start_time"]])
-    ws.append(["ساعت پایان", meta["end_time"]])
-    ws.append(["کیلومتر شروع", meta["start_km"]])
-    ws.append(["کیلومتر پایان", meta["end_km"]])
-    ws.append(["مسافت طی شده", meta["distance"]])
-    ws.append(["نام ارزیاب", meta["evaluator"]])
-    ws.append([])
-
-    ws.append(["ردیف","ایرادات فنی","شرایط بروز ایراد","کیلومتر بروز ایراد","نظر سرپرست"])
+    # جدول مشاهدات
+    table_data = [["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر بروز ایراد", "نظر سرپرست"]]
     for r in data["observations"]:
-        ws.append([r["row"],r["issue"],r["condition"],r["km"],r["supervisor_comment"]])
+        table_data.append([r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]])
 
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    excel_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.xlsx'
+    table = Table(table_data, colWidths=[40, 120, 120, 80, 120])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 1, colors.black),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+    ]))
+    elements.append(table)
 
-    return send_file(
-        output,
-        download_name=excel_filename,
-        as_attachment=True,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    doc.build(elements)
+    buffer.seek(0)
+    pdf_filename = f"{meta['eval_date']}_{meta['vehicle_type']}_{meta['vin']}_{meta['evaluator']}.pdf"
+
+    return send_file(buffer, as_attachment=True, download_name=pdf_filename, mimetype="application/pdf")
+
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -256,6 +268,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
