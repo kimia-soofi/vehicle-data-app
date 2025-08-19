@@ -155,45 +155,66 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-pdf = FPDF()
-pdf.add_page()
-# اضافه کردن فونت فارسی (Vazir) که باید در مسیر static باشد
-pdf.add_font("Vazir", "", os.path.join("static", "Vazir-Regular.ttf"), uni=True)
-pdf.set_font("Vazir", "", 14)
+@app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
+def download_pdf(model, fname):
+    if not session.get("admin_logged_in"): 
+        return redirect(url_for("admin_login"))
 
-meta = data["meta"]
+    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    if not os.path.isfile(fpath):
+        flash("فایل پیدا نشد ❌")
+        return redirect(url_for("admin_panel"))
 
-pdf.cell(0, 10, "فرم ارزیابی خودرو", ln=True, align="C")
-pdf.ln(5)
-for k, v in meta.items():
-    pdf.cell(0, 8, f"{k}: {v}", ln=True)
+    with open(fpath, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-pdf.ln(5)
-pdf.cell(0, 8, "جدول مشاهدات:", ln=True)
-pdf.ln(2)
+    pdf = FPDF()
+    pdf.add_page()
+    # فونت فارسی Vazir، حتما در static باشد
+    pdf.add_font("Vazir", "", os.path.join("static", "Vazirmatn-Regular.ttf"), uni=True)
+    pdf.set_font("Vazir", "", 14)
 
-pdf.set_font("Vazir", "", 12)
-pdf.set_fill_color(220, 220, 220)
-# سر جدول
-pdf.cell(10, 8, "ردیف", 1, 0, "C", 1)
-pdf.cell(60, 8, "ایرادات فنی", 1, 0, "C", 1)
-pdf.cell(60, 8, "شرایط بروز ایراد", 1, 0, "C", 1)
-pdf.cell(30, 8, "کیلومتر", 1, 0, "C", 1)
-pdf.cell(30, 8, "نظر سرپرست", 1, 1, "C", 1)
+    meta = data["meta"]
 
-# ردیف‌ها
-for r in data["observations"]:
-    pdf.cell(10, 8, str(r["row"]), 1, 0, "C")
-    pdf.cell(60, 8, r["issue"], 1, 0, "C")
-    pdf.cell(60, 8, r["condition"], 1, 0, "C")
-    pdf.cell(30, 8, str(r["km"]), 1, 0, "C")
-    pdf.cell(30, 8, r["supervisor_comment"], 1, 1, "C")
+    pdf.cell(0, 10, "فرم ارزیابی خودرو", ln=True, align="C")
+    pdf.ln(5)
+    for k, v in meta.items():
+        pdf.multi_cell(0, 8, f"{k}: {v}")  # multi_cell برای متن طولانی فارسی
+    pdf.ln(5)
+    pdf.cell(0, 8, "جدول مشاهدات:", ln=True)
+    pdf.ln(2)
 
-# ذخیره در BytesIO
-pdf_io = io.BytesIO()
-pdf.output(pdf_io)
-pdf_io.seek(0)
-return send_file(pdf_io, download_name="form.pdf", as_attachment=True, mimetype="application/pdf")
+    pdf.set_font("Vazir", "", 12)
+    pdf.set_fill_color(220, 220, 220)
+
+    # table header
+    pdf.cell(10, 10, "ردیف", 1, 0, "C", 1)
+    pdf.cell(60, 10, "ایرادات فنی", 1, 0, "C", 1)
+    pdf.cell(60, 10, "شرایط بروز ایراد", 1, 0, "C", 1)
+    pdf.cell(30, 10, "کیلومتر", 1, 0, "C", 1)
+    pdf.cell(30, 10, "نظر سرپرست", 1, 1, "C", 1)
+
+    # table rows
+    for r in data["observations"]:
+        pdf.cell(10, 10, str(r["row"]), 1, 0, "C")
+        pdf.multi_cell(60, 10, r["issue"], 1, "C")
+        x = pdf.get_x()
+        y = pdf.get_y() - 10
+        pdf.set_xy(x + 60, y)
+        pdf.multi_cell(60, 10, r["condition"], 1, "C")
+        x = pdf.get_x()
+        y = pdf.get_y() - 10
+        pdf.set_xy(x + 120, y)
+        pdf.cell(30, 10, str(r["km"]), 1, 0, "C")
+        pdf.cell(30, 10, r["supervisor_comment"], 1, 1, "C")
+
+    pdf_io = io.BytesIO()
+    pdf.output(pdf_io)
+    pdf_io.seek(0)
+
+    pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
+    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -257,6 +278,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
