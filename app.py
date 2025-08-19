@@ -158,8 +158,7 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-@app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
-d# فونت فارسی را ثبت کن
+# فونت فارسی را ثبت کن
 pdfmetrics.registerFont(TTFont("Vazirmatn", "static/fonts/Vazirmatn-Regular.ttf"))
 
 @app.route("/download_pdf/<int:record_id>")
@@ -188,6 +187,7 @@ def download_pdf(record_id):
 
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=f"form_{record.id}.pdf", mimetype="application/pdf")
+
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -249,6 +249,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
