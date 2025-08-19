@@ -4,10 +4,10 @@ from datetime import datetime
 import jdatetime
 from openpyxl import Workbook
 from config import ADMIN_USERNAME, ADMIN_PASSWORD, STAFF_USERNAME, STAFF_PASSWORD, CAR_MODELS_FILE, INITIAL_CAR_MODELS
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 # ----- تنظیمات پایه
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
@@ -159,54 +159,35 @@ def admin_reject(model,fname):
 
 # ----- دانلود PDF کل فرم
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
-def admin_download_pdf(model, fname):
-    if not session.get("admin_logged_in"): return redirect(url_for("admin_login"))
-    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
-    if not os.path.isfile(fpath):
-        flash("فایل پیدا نشد")
-        return redirect(url_for("admin_panel"))
+d# فونت فارسی را ثبت کن
+pdfmetrics.registerFont(TTFont("Vazirmatn", "static/fonts/Vazirmatn-Regular.ttf"))
 
-    with open(fpath, "r", encoding="utf-8") as f: 
-        data = json.load(f)
+@app.route("/download_pdf/<int:record_id>")
+def download_pdf(record_id):
+    record = FormData.query.get_or_404(record_id)
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=20)
-    elements = []
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+
     styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="RightAlign", fontName="Vazirmatn", fontSize=12, leading=16, alignment=2))  # راست‌چین
 
-    # متادیتا
-    meta = data["meta"]
-    elements.append(Paragraph(f"<b>نوع خودرو:</b> {meta['vehicle_type']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>VIN:</b> {meta['vin']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>تاریخ ارزیابی:</b> {meta['eval_date']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>ساعت شروع:</b> {meta['start_time']}  <b>ساعت پایان:</b> {meta['end_time']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>کیلومتر شروع:</b> {meta['start_km']}  <b>کیلومتر پایان:</b> {meta['end_km']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>مسافت طی شده:</b> {meta['distance']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>نام ارزیاب:</b> {meta['evaluator']}", styles['Normal']))
-    elements.append(Paragraph(f"<b>زمان ارسال:</b> {meta['submitted_at']}", styles['Normal']))
-    elements.append(Spacer(1, 12))
+    story = []
 
-    # جدول مشاهدات
-    table_data = [["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر بروز ایراد", "نظر سرپرست"]]
-    for r in data["observations"]:
-        table_data.append([r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]])
+    story.append(Paragraph("<b>فرم ثبت اطلاعات خودرو</b>", styles["RightAlign"]))
+    story.append(Spacer(1, 12))
 
-    table = Table(table_data, colWidths=[40, 120, 120, 80, 120])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("GRID", (0, 0), (-1, -1), 1, colors.black),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-    ]))
-    elements.append(table)
+    # فیلدها
+    story.append(Paragraph(f"تاریخ ثبت: {record.date}", styles["RightAlign"]))
+    story.append(Paragraph(f"نام خودرو: {record.car_type}", styles["RightAlign"]))
+    story.append(Paragraph(f"شماره شاسی: {record.vin}", styles["RightAlign"]))
+    story.append(Paragraph(f"نام ثبت‌کننده: {record.submitter}", styles["RightAlign"]))
+    story.append(Paragraph(f"یادداشت‌ها: {record.notes}", styles["RightAlign"]))
 
-    doc.build(elements)
+    doc.build(story)
+
     buffer.seek(0)
-    pdf_filename = f"{meta['eval_date']}_{meta['vehicle_type']}_{meta['vin']}_{meta['evaluator']}.pdf"
-
-    return send_file(buffer, as_attachment=True, download_name=pdf_filename, mimetype="application/pdf")
-
+    return send_file(buffer, as_attachment=True, download_name=f"form_{record.id}.pdf", mimetype="application/pdf")
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -268,6 +249,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
