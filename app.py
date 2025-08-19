@@ -170,16 +170,14 @@ def download_pdf(model, fname):
 
     pdf = FPDF()
     pdf.add_page()
-    # فونت فارسی Vazir، حتما در static باشد
     pdf.add_font("Vazir", "", os.path.join("static", "Vazirmatn-Regular.ttf"), uni=True)
     pdf.set_font("Vazir", "", 14)
 
     meta = data["meta"]
-
     pdf.cell(0, 10, "فرم ارزیابی خودرو", ln=True, align="C")
     pdf.ln(5)
     for k, v in meta.items():
-        pdf.multi_cell(0, 8, f"{k}: {v}")  # multi_cell برای متن طولانی فارسی
+        pdf.multi_cell(0, 8, f"{k}: {v}")
     pdf.ln(5)
     pdf.cell(0, 8, "جدول مشاهدات:", ln=True)
     pdf.ln(2)
@@ -208,12 +206,13 @@ def download_pdf(model, fname):
         pdf.cell(30, 10, str(r["km"]), 1, 0, "C")
         pdf.cell(30, 10, r["supervisor_comment"], 1, 1, "C")
 
-    pdf_io = io.BytesIO()
-    pdf.output(pdf_io)
-    pdf_io.seek(0)
+    # اینجا PDF را به صورت رشته باینری دریافت می‌کنیم
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    pdf_io = io.BytesIO(pdf_bytes)
 
     pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -278,6 +277,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
