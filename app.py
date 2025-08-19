@@ -155,53 +155,50 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-# فونت فارسی را ثبت کن
-pdfmetrics.registerFont(TTFont("Vazirmatn", "static/fonts/Vazirmatn-Regular.ttf"))
-
-# ----- دانلود PDF کل فرم
+# ----- دانلود PDF
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
-def download_pdf(model, fname):
-    if not session.get("admin_logged_in"):
-        return redirect(url_for("admin_login"))
-
+def download_pdf(model,fname):
+    if not session.get("admin_logged_in"): return redirect(url_for("admin_login"))
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
     if not os.path.isfile(fpath):
-        flash("فایل پیدا نشد")
+        flash("فایل پیدا نشد ❌")
         return redirect(url_for("admin_panel"))
 
-    with open(fpath, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
+    with open(fpath,"r",encoding="utf-8") as f: data=json.load(f)
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_font("DejaVu", "", "static/fonts/DejaVuSansCondensed.ttf", uni=True)
-    pdf.set_font("DejaVu", "", 12)
-
+    pdf.add_font("Vazir","",os.path.join("static","Vazir-Regular.ttf"), uni=True)
+    pdf.set_font("Vazir","",14)
     meta = data["meta"]
 
-    pdf.cell(0, 10, f"نوع خودرو: {meta['vehicle_type']}", ln=True)
-    pdf.cell(0, 10, f"VIN: {meta['vin']}", ln=True)
-    pdf.cell(0, 10, f"تاریخ ارزیابی: {meta['eval_date']}", ln=True)
-    pdf.cell(0, 10, f"ساعت: {meta['start_time']} تا {meta['end_time']}", ln=True)
-    pdf.cell(0, 10, f"کیلومتر: {meta['start_km']} → {meta['end_km']}", ln=True)
-    pdf.cell(0, 10, f"مسافت طی شده: {meta['distance']}", ln=True)
-    pdf.cell(0, 10, f"نام ارزیاب: {meta['evaluator']}", ln=True)
+    pdf.cell(0,10,f"فرم ارزیابی خودرو", ln=True, align="C")
     pdf.ln(5)
+    for k,v in meta.items():
+        pdf.cell(0,8,f"{k}: {v}", ln=True)
+    pdf.ln(5)
+    pdf.cell(0,8,"جدول مشاهدات:", ln=True)
+    pdf.ln(2)
 
-    # جدول observations
-    pdf.set_font("DejaVu", "", 11)
+    pdf.set_font("Vazir","",12)
+    pdf.set_fill_color(220,220,220)
+    # table header
+    pdf.cell(10,8,"ردیف",1,0,"C",1)
+    pdf.cell(60,8,"ایرادات فنی",1,0,"C",1)
+    pdf.cell(60,8,"شرایط بروز ایراد",1,0,"C",1)
+    pdf.cell(30,8,"کیلومتر",1,0,"C",1)
+    pdf.cell(30,8,"نظر سرپرست",1,1,"C",1)
+    # table rows
     for r in data["observations"]:
-        pdf.multi_cell(0, 8, f"ردیف: {r['row']} | ایراد: {r['issue']} | شرایط: {r['condition']} | "
-                               f"کیلومتر: {r['km']} | نظر سرپرست: {r['supervisor_comment']}", ln=True)
-        pdf.ln(2)
+        pdf.cell(10,8,str(r["row"]),1,0,"C")
+        pdf.cell(60,8,r["issue"],1,0,"C")
+        pdf.cell(60,8,r["condition"],1,0,"C")
+        pdf.cell(30,8,str(r["km"]),1,0,"C")
+        pdf.cell(30,8,r["supervisor_comment"],1,1,"C")
 
     output = io.BytesIO()
     pdf.output(output)
     output.seek(0)
-
-    pdf_filename = f"{meta['eval_date']}_{meta['vehicle_type']}_{meta['vin']}_{meta['evaluator']}.pdf"
-
+    pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
     return send_file(output, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
 
@@ -265,6 +262,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
