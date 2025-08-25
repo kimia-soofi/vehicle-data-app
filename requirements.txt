@@ -6,5 +6,6 @@ reportlab
 fpdf
 python-bidi
 
+arabic-reshaper
 
 
