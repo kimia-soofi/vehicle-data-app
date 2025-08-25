@@ -4,6 +4,7 @@ openpyxl
 jdatetime
 reportlab
 fpdf
-bidi
+python-bidi
+
 
 
