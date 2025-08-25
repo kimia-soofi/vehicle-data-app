@@ -209,10 +209,12 @@ def download_pdf(model, fname):
         y -= 20
 
     y -= 10
+    
     pdf.drawRightString(width-40, y, reshape_text("جدول مشاهدات:"))
     y -= 25
 
-    # جدول راست به چپ
+  
+    # جدول از راست به چپ
     col_widths = [60, 60, 130, 130, 30]  # نظر سرپرست، کیلومتر، شرایط، ایراد، ردیف
     x_positions = []
     x_right = width - 40
@@ -221,36 +223,27 @@ def download_pdf(model, fname):
         x_right -= w
 
     headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
-
-    # هدر جدول با رنگ خاکستری
-    pdf.setFillColorRGB(0.8,0.8,0.8)
     for i, h in enumerate(headers):
-        pdf.rect(x_positions[i], y-20, col_widths[i], 20, fill=1)
-        pdf.setFillColor(colors.black)
+        pdf.rect(x_positions[i], y-20, col_widths[i], 20)
         if is_farsi(h):
             pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, reshape_text(h))
         else:
             pdf.drawString(x_positions[i]+2, y-15, h)
     y -= 20
 
-    # ردیف‌ها با رنگ راه‌راه
-    fill_colors = [colors.white, colors.lightgrey]
-    row_count = 0
+    # ردیف‌ها
     for r in data["observations"]:
-        row_color = fill_colors[row_count % 2]
-        row_count += 1
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
-        row_data = [row_data[4], row_data[3], row_data[2], row_data[1], row_data[0]]  # RTL
+        # مرتب سازی برای RTL
+        row_data = [row_data[4], row_data[3], row_data[2], row_data[1], row_data[0]]
         for i, cell in enumerate(row_data):
-            pdf.setFillColor(row_color)
-            pdf.rect(x_positions[i], y-20, col_widths[i], 20, fill=1)
-            pdf.setFillColor(colors.black)
+            pdf.rect(x_positions[i], y-20, col_widths[i], 20)
             if is_farsi(cell):
                 pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, reshape_text(str(cell)))
             else:
                 pdf.drawString(x_positions[i]+2, y-15, str(cell))
         y -= 20
-        if y < 50:
+        if y < 50:  # صفحه جدید اگر کم شد
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
@@ -324,6 +317,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
