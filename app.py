@@ -175,6 +175,18 @@ def fix_text(text):
         return get_display(reshaped)
     return str(text)
 
+def fix_mixed_text(text):
+    """متن ترکیبی فارسی و انگلیسی را درست نمایش می‌دهد"""
+    words = str(text).split(' ')
+    fixed_words = []
+    for w in words:
+        if is_farsi(w):
+            fixed_words.append(get_display(arabic_reshaper.reshape(w)))
+        else:
+            fixed_words.append(w)
+    return ' '.join(fixed_words)
+
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"): 
@@ -233,7 +245,7 @@ def download_pdf(model, fname):
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
         for i, cell in enumerate(row_data):
             pdf.rect(x_positions[i], y-20, col_widths[i], 20)
-            cell_text = fix_text(str(cell))
+            cell_text = fix_mixed_text(str(cell))
             if is_farsi(cell):
                 pdf.drawRightString(x_positions[i]+col_widths[i]-5, y-15, cell_text)
             else:
@@ -313,6 +325,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
