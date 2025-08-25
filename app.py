@@ -165,7 +165,7 @@ import io
 
 # ثبت فونت فارسی (باید فایل Vazir.ttf یا IranSans.ttf رو کنار پروژه بذاری)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # مسیر پروژه
-FONT_PATH = os.path.join(BASE_DIR, "static", "fonts", "Vazir.ttf")
+FONT_PATH = os.path.join(BASE_DIR, "static", "fonts", "Vazirmatn-Regular.ttf")
 
 pdfmetrics.registerFont(TTFont("Vazir", FONT_PATH))
 def is_persian(text):
@@ -289,6 +289,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
