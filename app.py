@@ -155,13 +155,13 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
+# ----- دانلود PDF کل فرم -----
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-from reportlab.lib import colors
-from bidi.algorithm import get_display
 import arabic_reshaper
+from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
 
@@ -169,7 +169,7 @@ def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
 def reshape_text(text):
-    reshaped_text = arabic_reshaper.reshape(text)
+    reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
@@ -209,59 +209,56 @@ def download_pdf(model, fname):
         y -= 20
 
     y -= 10
-    
     pdf.drawRightString(width-40, y, reshape_text("جدول مشاهدات:"))
     y -= 25
 
-  
-    # ستون‌ها: نام، عرض، جایگاه از سمت راست
-col_specs = [
-    ("ردیف", 30),
-    ("ایرادات فنی", 130),
-    ("شرایط بروز ایراد", 130),
-    ("کیلومتر", 60),
-    ("نظر سرپرست", 60),
-]
+    # ستون‌ها: نام، عرض
+    col_specs = [
+        ("ردیف", 30),
+        ("ایرادات فنی", 130),
+        ("شرایط بروز ایراد", 130),
+        ("کیلومتر", 60),
+        ("نظر سرپرست", 60),
+    ]
 
-# محاسبه x از راست
-x_positions = []
-x_right = width - 40
-for name, w in reversed(col_specs):  # از راست به چپ
-    x_positions.insert(0, x_right - w)
-    x_right -= w
+    # محاسبه موقعیت x از راست
+    x_positions = []
+    x_right = width - 40
+    for name, w in reversed(col_specs):  # از راست به چپ
+        x_positions.insert(0, x_right - w)
+        x_right -= w
 
-# هدر جدول
-for i, (h, w) in enumerate(col_specs):
-    pdf.rect(x_positions[i], y-20, w, 20)
-    if is_farsi(h):
-        pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(h))
-    else:
-        pdf.drawString(x_positions[i]+2, y-15, h)
-y -= 20
-
-# ردیف‌ها
-for r in data["observations"]:
-    row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
-    for i, (cell, (h, w)) in enumerate(zip(row_data, col_specs)):
+    # هدر جدول
+    for i, (h, w) in enumerate(col_specs):
         pdf.rect(x_positions[i], y-20, w, 20)
-        if is_farsi(cell):
-            pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(str(cell)))
+        if is_farsi(h):
+            pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(h))
         else:
-            pdf.drawString(x_positions[i]+2, y-15, str(cell))
+            pdf.drawString(x_positions[i]+2, y-15, h)
     y -= 20
-    if y < 50:
-        pdf.showPage()
-        pdf.setFont("Vazir", 12)
-        y = height - 50
 
+    # ردیف‌ها
+    for r in data["observations"]:
+        row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
+        for i, (cell, (h, w)) in enumerate(zip(row_data, col_specs)):
+            cell_str = str(cell) if cell is not None else ""
+            pdf.rect(x_positions[i], y-20, w, 20)
+            if is_farsi(cell_str):
+                pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(cell_str))
+            else:
+                pdf.drawString(x_positions[i]+2, y-15, cell_str)
+        y -= 20
+        if y < 50:
+            pdf.showPage()
+            pdf.setFont("Vazir", 12)
+            y = height - 50
+
+    # پایان PDF
     pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
-
-
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -323,6 +320,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
