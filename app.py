@@ -160,12 +160,20 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from bidi.algorithm import get_display
+import arabic_reshaper
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
 
 def is_farsi(text):
-    """تشخیص متن فارسی"""
+    """تشخیص فارسی بودن متن"""
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
+
+def fix_text(text):
+    """درست کردن متن فارسی با reshaper + bidi"""
+    if is_farsi(text):
+        reshaped = arabic_reshaper.reshape(str(text))
+        return get_display(reshaped)
+    return str(text)
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
@@ -184,31 +192,30 @@ def download_pdf(model, fname):
     pdf = canvas.Canvas(pdf_io, pagesize=A4)
     width, height = A4
 
-    # اضافه کردن فونت فارسی
+    # فونت فارسی
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
     pdf.setFont("Vazir", 14)
 
-    # عنوان فرم
-    pdf.drawCentredString(width/2, height-50, get_display("فرم ارزیابی خودرو"))
+    # عنوان
+    pdf.drawCentredString(width/2, height-50, fix_text("فرم ارزیابی خودرو"))
 
     # اطلاعات متا
     y = height - 80
     pdf.setFont("Vazir", 12)
     for k, v in data["meta"].items():
+        text = f"{k}: {v}"
         if is_farsi(k) or is_farsi(str(v)):
-            text = get_display(f"{k}: {v}")
-            pdf.drawRightString(width-40, y, text)
+            pdf.drawRightString(width-40, y, fix_text(text))
         else:
-            text = f"{k}: {v}"
             pdf.drawString(40, y, text)
         y -= 20
 
     y -= 10
-    pdf.drawRightString(width-40, y, get_display("جدول مشاهدات:"))
+    pdf.drawRightString(width-40, y, fix_text("جدول مشاهدات:"))
     y -= 25
 
     # جدول
-    col_widths = [30, 130, 130, 60, 60]  # ردیف، ایراد، شرایط، کیلومتر، نظر سرپرست
+    col_widths = [30, 130, 130, 60, 80]  
     x_positions = [40, 70, 200, 330, 390]
 
     # هدر جدول
@@ -216,9 +223,9 @@ def download_pdf(model, fname):
     for i, h in enumerate(headers):
         pdf.rect(x_positions[i], y-20, col_widths[i], 20)
         if is_farsi(h):
-            pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, get_display(h))
+            pdf.drawRightString(x_positions[i]+col_widths[i]-5, y-15, fix_text(h))
         else:
-            pdf.drawString(x_positions[i]+2, y-15, h)
+            pdf.drawString(x_positions[i]+5, y-15, h)
     y -= 20
 
     # ردیف‌ها
@@ -226,12 +233,14 @@ def download_pdf(model, fname):
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
         for i, cell in enumerate(row_data):
             pdf.rect(x_positions[i], y-20, col_widths[i], 20)
+            cell_text = fix_text(str(cell))
             if is_farsi(cell):
-                pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, get_display(str(cell)))
+                pdf.drawRightString(x_positions[i]+col_widths[i]-5, y-15, cell_text)
             else:
-                pdf.drawString(x_positions[i]+2, y-15, str(cell))
+                pdf.drawString(x_positions[i]+5, y-15, str(cell))
         y -= 20
-        if y < 50:  # صفحه جدید اگر کم شد
+
+        if y < 50:  # صفحه جدید
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
@@ -241,10 +250,6 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
-
-
-
 
 
 
@@ -308,6 +313,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
