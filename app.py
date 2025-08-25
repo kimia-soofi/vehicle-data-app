@@ -214,39 +214,45 @@ def download_pdf(model, fname):
     y -= 25
 
   
-    # جدول از راست به چپ
-    col_widths = [60, 60, 130, 130, 30]  # نظر سرپرست، کیلومتر، شرایط، ایراد، ردیف
-    x_positions = []
-    x_right = width - 40
-    for w in col_widths:
-        x_positions.append(x_right - w)
-        x_right -= w
+    # ستون‌ها: نام، عرض، جایگاه از سمت راست
+col_specs = [
+    ("ردیف", 30),
+    ("ایرادات فنی", 130),
+    ("شرایط بروز ایراد", 130),
+    ("کیلومتر", 60),
+    ("نظر سرپرست", 60),
+]
 
-    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
-    for i, h in enumerate(headers):
-        pdf.rect(x_positions[i], y-20, col_widths[i], 20)
-        if is_farsi(h):
-            pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, reshape_text(h))
+# محاسبه x از راست
+x_positions = []
+x_right = width - 40
+for name, w in reversed(col_specs):  # از راست به چپ
+    x_positions.insert(0, x_right - w)
+    x_right -= w
+
+# هدر جدول
+for i, (h, w) in enumerate(col_specs):
+    pdf.rect(x_positions[i], y-20, w, 20)
+    if is_farsi(h):
+        pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(h))
+    else:
+        pdf.drawString(x_positions[i]+2, y-15, h)
+y -= 20
+
+# ردیف‌ها
+for r in data["observations"]:
+    row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
+    for i, (cell, (h, w)) in enumerate(zip(row_data, col_specs)):
+        pdf.rect(x_positions[i], y-20, w, 20)
+        if is_farsi(cell):
+            pdf.drawRightString(x_positions[i]+w-2, y-15, reshape_text(str(cell)))
         else:
-            pdf.drawString(x_positions[i]+2, y-15, h)
+            pdf.drawString(x_positions[i]+2, y-15, str(cell))
     y -= 20
-
-    # ردیف‌ها
-    for r in data["observations"]:
-        row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
-        # مرتب سازی برای RTL
-        row_data = [row_data[4], row_data[3], row_data[2], row_data[1], row_data[0]]
-        for i, cell in enumerate(row_data):
-            pdf.rect(x_positions[i], y-20, col_widths[i], 20)
-            if is_farsi(cell):
-                pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-15, reshape_text(str(cell)))
-            else:
-                pdf.drawString(x_positions[i]+2, y-15, str(cell))
-        y -= 20
-        if y < 50:  # صفحه جدید اگر کم شد
-            pdf.showPage()
-            pdf.setFont("Vazir", 12)
-            y = height - 50
+    if y < 50:
+        pdf.showPage()
+        pdf.setFont("Vazir", 12)
+        y = height - 50
 
     pdf.save()
     pdf_io.seek(0)
@@ -317,6 +323,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
