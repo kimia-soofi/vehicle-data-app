@@ -155,74 +155,107 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
-from flask import send_file
+from flask import send_file, redirect, url_for, flash, session
 from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
 from bidi.algorithm import get_display
 import arabic_reshaper
-import io
+import io, os, json
 
-# ثبت فونت فارسی (باید فایل Vazir.ttf یا IranSans.ttf رو کنار پروژه بذاری)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # مسیر پروژه
-FONT_PATH = os.path.join(BASE_DIR, "static", "fonts", "Vazirmatn-Regular.ttf")
+def fix_text(text):
+    """اصلاح متن فارسی و انگلیسی"""
+    if not text:
+        return ""
+    # اگر متن فقط انگلیسی یا عدد است، همونطوری برگرده
+    if all(ord(c) < 128 for c in text):
+        return text
+    # اگر فارسی یا ترکیبی است → reshape + bidi
+    reshaped = arabic_reshaper.reshape(text)
+    return get_display(reshaped)
 
-pdfmetrics.registerFont(TTFont("Vazir", FONT_PATH))
-def is_persian(text):
-    """Check if text contains Persian characters"""
-    for ch in text:
-        if '\u0600' <= ch <= '\u06FF':  # محدوده یونیکد فارسی/عربی
-            return True
-    return False
+@app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
+def download_pdf(model, fname):
+    if not session.get("admin_logged_in"):
+        return redirect(url_for("admin_login"))
 
-def prepare_text(text):
-    """Fix Persian text shaping and direction"""
-    if is_persian(text):
-        reshaped_text = arabic_reshaper.reshape(text)   # حروف فارسی بچسبند
-        bidi_text = get_display(reshaped_text)          # جهت نوشتار راست به چپ
-        return bidi_text, True
-    else:
-        return text, False
+    fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
+    if not os.path.isfile(fpath):
+        flash("فایل پیدا نشد ❌")
+        return redirect(url_for("admin_panel"))
 
-def draw_text(pdf, x, y, text, font="Vazir", size=12, page_width=595):
-    pdf.setFont(font, size)
-    fixed_text, is_rtl = prepare_text(text)
-    if is_rtl:
-        pdf.drawRightString(page_width - x, y, fixed_text)  # راست‌چین برای فارسی
-    else:
-        pdf.drawString(x, y, fixed_text)  # چپ‌چین برای انگلیسی
+    with open(fpath, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-@app.route("/download_pdf/<int:record_id>")
-def download_pdf(record_id):
-    record = VehicleData.query.get(record_id)
-    if not record:
-        return "رکورد پیدا نشد", 404
+    meta = data["meta"]
+    observations = data["observations"]
 
+    # ایجاد PDF در حافظه
     buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=(595, 842))  # A4
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
 
-    y = 800
-    page_width = 595
+    # اضافه کردن فونت فارسی (از پوشه static/fonts)
+    font_path = os.path.join("static", "fonts", "Vazirmatn-Regular.ttf")
+    pdfmetrics.registerFont(TTFont("Vazir", font_path))
+    pdf.setFont("Vazir", 14)
 
-    draw_text(pdf, 50, y, "فرم ارزیابی خودرو", size=16)
-    y -= 40
+    # موقعیت اولیه
+    y = height - 50
+    pdf.drawRightString(width - 50, y, fix_text("فرم ارزیابی خودرو"))
+    y -= 30
 
-    fields = [
-        ("نوع خودرو:", record.car_type),
-        ("VIN:", record.vin),
-        ("کارکرد:", str(record.mileage)),
-        ("توضیحات:", record.notes or "ندارد")
-    ]
+    # اطلاعات متا
+    pdf.setFont("Vazir", 12)
+    for k, v in meta.items():
+        line = f"{k}: {v}"
+        pdf.drawRightString(width - 50, y, fix_text(line))
+        y -= 20
 
-    for label, value in fields:
-        draw_text(pdf, 50, y, f"{label} {value}", size=12, page_width=page_width)
-        y -= 30
+    y -= 10
+    pdf.drawRightString(width - 50, y, fix_text("جدول مشاهدات:"))
+    y -= 20
 
-    pdf.showPage()
+    # جدول header
+    col_widths = [40, 120, 120, 60, 80]
+    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
+    x_positions = [width - sum(col_widths[:i+1]) - 50 for i in range(len(col_widths))]
+
+    pdf.setFont("Vazir", 11)
+    pdf.setFillColorRGB(0.8, 0.8, 0.8)
+    y_start = y
+    for i, header in enumerate(headers):
+        pdf.rect(x_positions[i], y-18, col_widths[i], 20, fill=1)
+        pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-5, fix_text(header))
+    y -= 25
+
+    pdf.setFillColorRGB(0,0,0)
+
+    # جدول rows
+    for r in observations:
+        if y < 50:  # ایجاد صفحه جدید
+            pdf.showPage()
+            pdf.setFont("Vazir", 11)
+            y = height - 50
+
+        row_data = [
+            str(r["row"]),
+            r["issue"],
+            r["condition"],
+            str(r["km"]),
+            r["supervisor_comment"]
+        ]
+        for i, cell in enumerate(row_data):
+            pdf.rect(x_positions[i], y-18, col_widths[i], 20)
+            pdf.drawRightString(x_positions[i]+col_widths[i]-2, y-5, fix_text(cell))
+        y -= 25
+
     pdf.save()
-
     buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name="vehicle_data.pdf", mimetype="application/pdf")
+
+    pdf_filename = f'{meta["eval_date"]}_{meta["vehicle_type"]}_{meta["vin"]}_{meta["evaluator"]}.pdf'
+    return send_file(buffer, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
 
 
@@ -289,6 +322,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
