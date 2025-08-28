@@ -270,7 +270,7 @@ def download_pdf(model, fname):
             pdf.rect(x, y - max_row_height, w, max_row_height)
             para.wrapOn(pdf, w-4, max_row_height-4)
             # اینجا y - max_row_height + padding
-            para.drawOn(pdf, x+2, y-max_row_height+4)
+            para.drawOn(pdf, x+2, y+max_row_height+4)
 
         y -= max_row_height
         if y < 80:
@@ -350,6 +350,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
