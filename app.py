@@ -162,6 +162,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
+from reportlab.lib import colors
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
@@ -179,7 +180,7 @@ def reshape_text(text):
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
-    if not session.get("admin_logged_in"):
+    if not session.get("admin_logged_in"): 
         return redirect(url_for("admin_login"))
     
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
@@ -198,11 +199,11 @@ def download_pdf(model, fname):
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
     pdf.setFont("Vazir", 14)
 
-    # سبک پاراگراف
-    farsi_style = ParagraphStyle('farsi', fontName='Vazir', fontSize=10, alignment=TA_RIGHT)
-    eng_style = ParagraphStyle('eng', fontName='Vazir', fontSize=10, alignment=TA_LEFT)
+    # تعریف استایل برای پاراگراف‌ها
+    farsi_style = ParagraphStyle(name="Farsi", fontName="Vazir", fontSize=10, leading=12, alignment=TA_RIGHT)
+    eng_style = ParagraphStyle(name="English", fontName="Vazir", fontSize=10, leading=12, alignment=TA_LEFT)
 
-    # عنوان
+    # عنوان فرم
     pdf.drawCentredString(width/2, height-50, reshape_text("فرم ارزیابی خودرو"))
 
     # اطلاعات متا
@@ -210,7 +211,9 @@ def download_pdf(model, fname):
     pdf.setFont("Vazir", 12)
     for k, v in data["meta"].items():
         val_str = str(v)
+        # کلید همیشه چپ‌چین
         pdf.drawString(40, y, f"{k}:")
+        # مقدار چپ یا راست بر اساس زبان
         if is_farsi(val_str):
             pdf.drawRightString(width-100, y, reshape_text(val_str))
         else:
@@ -221,7 +224,7 @@ def download_pdf(model, fname):
     pdf.drawRightString(width-40, y, reshape_text("جدول مشاهدات:"))
     y -= 25
 
-    # ستون‌ها: ترتیب از راست به چپ
+    # مشخصات ستون‌ها: (نام، عرض)
     col_specs = [
         ("ردیف", 30),
         ("ایرادات فنی", 130),
@@ -246,44 +249,41 @@ def download_pdf(model, fname):
             pdf.drawString(x+2, y-15, h)
     y -= 20
 
-    # ردیف‌ها با wrap صحیح
-    default_row_height = 40
+    # ردیف‌ها
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
-        max_row_height = default_row_height
+        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع ردیف
+        max_height = 0
         cell_paragraphs = []
-
-        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
         for cell, (h, w), x in zip(row_data, col_specs, x_positions):
             cell_str = str(cell) if cell is not None else ""
             style = farsi_style if is_farsi(cell_str) else eng_style
-            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
-            para = Paragraph(content, style)
+            text = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
+            para = Paragraph(text, style)
             cell_paragraphs.append((para, w, x))
-            _, ph = para.wrap(w-4, default_row_height)
-            if ph  > max_row_height:
-                max_row_height = ph + 8
+            _, ph = para.wrap(w-4, 1000)
+            if ph + 4 > max_height:
+                max_height = ph + 4  # کمی padding
 
-        # رسم سلول‌ها و پاراگراف‌ها
+        # رسم سلول‌ها
         for para, w, x in cell_paragraphs:
-            pdf.rect(x, y - max_row_height, w, max_row_height)
-            para.wrapOn(pdf, w-4, max_row_height-4)
-            # اینجا y - max_row_height + padding
-            para.drawOn(pdf, x+2, y+max_row_height+4)
+            pdf.rect(x, y-max_height, w, max_height)
+            para.wrapOn(pdf, w-4, max_height)
+            para.drawOn(pdf, x+2, y-max_height+2)
 
-        y -= max_row_height
-        if y < 80:
+        y -= max_height
+        if y < 50:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
 
+    # پایان
     pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
 
 
 
@@ -350,6 +350,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
