@@ -154,6 +154,9 @@ def admin_reject(model,fname):
         flash("رکورد رد شد ❌")
     return redirect(url_for("admin_panel"))
 
+
+
+
 # ----- دانلود PDF کل فرم
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -176,7 +179,7 @@ def reshape_text(text):
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
-    if not session.get("admin_logged_in"): 
+    if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
     
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
@@ -193,13 +196,13 @@ def download_pdf(model, fname):
 
     # فونت فارسی
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
+    pdf.setFont("Vazir", 14)
 
     # سبک پاراگراف
-    farsi_style = ParagraphStyle('farsi', fontName='Vazir', fontSize=12, alignment=TA_RIGHT)
-    eng_style = ParagraphStyle('eng', fontName='Vazir', fontSize=12, alignment=TA_LEFT)
+    farsi_style = ParagraphStyle('farsi', fontName='Vazir', fontSize=10, alignment=TA_RIGHT)
+    eng_style = ParagraphStyle('eng', fontName='Vazir', fontSize=10, alignment=TA_LEFT)
 
     # عنوان
-    pdf.setFont("Vazir", 14)
     pdf.drawCentredString(width/2, height-50, reshape_text("فرم ارزیابی خودرو"))
 
     # اطلاعات متا
@@ -230,7 +233,7 @@ def download_pdf(model, fname):
     # محاسبه x از راست
     x_positions = []
     x_cursor = width - 40
-    for name, w in col_specs:  # از راست به چپ
+    for name, w in col_specs:
         x_positions.append(x_cursor - w)
         x_cursor -= w
 
@@ -243,8 +246,8 @@ def download_pdf(model, fname):
             pdf.drawString(x+2, y-15, h)
     y -= 20
 
-    # ردیف‌ها با ارتفاع متغیر و wrap
-    default_row_height = 40
+    # ردیف‌ها با wrap صحیح
+    default_row_height = 20
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
@@ -258,31 +261,27 @@ def download_pdf(model, fname):
             content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
             para = Paragraph(content, style)
             cell_paragraphs.append((para, w, x))
-
-            _, ph = para.wrap(w-4, default_row_height)
+            _, ph = para.wrap(w-4, 1000)
             if ph + 8 > max_row_height:
                 max_row_height = ph + 8
 
-        # رسم سلول‌ها
+        # رسم سلول‌ها و پاراگراف‌ها
         for para, w, x in cell_paragraphs:
-            pdf.rect(x, y-max_row_height, w, max_row_height)  # قاب
-            para_height = para.wrap(w-4, max_row_height-4)[1]
-            para.drawOn(pdf, x+2, y - para_height - 4)
+            pdf.rect(x, y - max_row_height, w, max_row_height)
+            _, ph = para.wrap(w-4, max_row_height-4)
+            para.drawOn(pdf, x+2, y - ph - 4)
 
         y -= max_row_height
-
         if y < 80:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
 
-    # پایان
     pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
 
 
 
@@ -350,6 +349,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
