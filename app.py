@@ -155,6 +155,7 @@ def admin_reject(model,fname):
     return redirect(url_for("admin_panel"))
 
 # ----- دانلود PDF کل فرم
+# ----- دانلود PDF کل فرم -----
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
@@ -163,6 +164,14 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
+
+def is_farsi(text):
+    return bool(re.search(r'[\u0600-\u06FF]', str(text)))
+
+def reshape_text(text):
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    return get_display(reshaped_text)
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"): 
@@ -257,6 +266,10 @@ def download_pdf(model, fname):
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
+
+
+
+
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
 def admin_car_models():
@@ -317,6 +330,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
