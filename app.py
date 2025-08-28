@@ -247,7 +247,7 @@ def download_pdf(model, fname):
     y -= 20
 
     # ردیف‌ها با wrap صحیح
-    default_row_height = 20
+    default_row_height = 40
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
@@ -261,15 +261,16 @@ def download_pdf(model, fname):
             content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
             para = Paragraph(content, style)
             cell_paragraphs.append((para, w, x))
-            _, ph = para.wrap(w-4, 1000)
-            if ph + 8 > max_row_height:
+            _, ph = para.wrap(w-4, default_row_height)
+            if ph  > max_row_height:
                 max_row_height = ph + 8
 
         # رسم سلول‌ها و پاراگراف‌ها
         for para, w, x in cell_paragraphs:
             pdf.rect(x, y - max_row_height, w, max_row_height)
-            _, ph = para.wrap(w-4, max_row_height-4)
-            para.drawOn(pdf, x+2, y - ph - 4)
+            para.wrapOn(pdf, w-4, max_row_height-4)
+            # اینجا y - max_row_height + padding
+            para.drawOn(pdf, x+2, y-max_row_height+4)
 
         y -= max_row_height
         if y < 80:
@@ -349,6 +350,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
