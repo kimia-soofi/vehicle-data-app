@@ -193,9 +193,13 @@ def download_pdf(model, fname):
 
     # فونت فارسی
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
-    pdf.setFont("Vazir", 14)
+
+    # سبک پاراگراف
+    farsi_style = ParagraphStyle('farsi', fontName='Vazir', fontSize=12, alignment=TA_RIGHT)
+    eng_style = ParagraphStyle('eng', fontName='Vazir', fontSize=12, alignment=TA_LEFT)
 
     # عنوان
+    pdf.setFont("Vazir", 14)
     pdf.drawCentredString(width/2, height-50, reshape_text("فرم ارزیابی خودرو"))
 
     # اطلاعات متا
@@ -203,7 +207,7 @@ def download_pdf(model, fname):
     pdf.setFont("Vazir", 12)
     for k, v in data["meta"].items():
         val_str = str(v)
-        pdf.drawString(40, y, f"{k}:")  # کلید همیشه چپ
+        pdf.drawString(40, y, f"{k}:")
         if is_farsi(val_str):
             pdf.drawRightString(width-100, y, reshape_text(val_str))
         else:
@@ -226,12 +230,11 @@ def download_pdf(model, fname):
     # محاسبه x از راست
     x_positions = []
     x_cursor = width - 40
-    for name, w in col_specs:
+    for name, w in col_specs:  # از راست به چپ
         x_positions.append(x_cursor - w)
         x_cursor -= w
 
     # هدر جدول
-    pdf.setFont("Vazir", 12)
     for (h, w), x in zip(col_specs, x_positions):
         pdf.rect(x, y-20, w, 20)
         if is_farsi(h):
@@ -240,45 +243,46 @@ def download_pdf(model, fname):
             pdf.drawString(x+2, y-15, h)
     y -= 20
 
-    # آماده‌سازی استایل پاراگراف
-    styles = {
-        'right': ParagraphStyle(name='right', fontName='Vazir', fontSize=10, alignment=TA_RIGHT),
-        'left': ParagraphStyle(name='left', fontName='Vazir', fontSize=10, alignment=TA_LEFT),
-    }
-
-    # ردیف‌ها
-    max_row_height = 40  # ارتفاع هر سلول (می‌توانید تغییر دهید)
+    # ردیف‌ها با ارتفاع متغیر و wrap
+    default_row_height = 40
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
-        # جمع‌آوری پاراگراف‌ها
+        max_row_height = default_row_height
         cell_paragraphs = []
-        for (cell, (h, w), x) in zip(row_data, col_specs, x_positions):
-            cell_str = "" if cell is None else str(cell)
-            if is_farsi(cell_str):
-                para = Paragraph(reshape_text(cell_str), styles['right'])
-            else:
-                para = Paragraph(cell_str, styles['left'])
+
+        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
+        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
+            cell_str = str(cell) if cell is not None else ""
+            style = farsi_style if is_farsi(cell_str) else eng_style
+            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
+            para = Paragraph(content, style)
             cell_paragraphs.append((para, w, x))
+
+            _, ph = para.wrap(w-4, default_row_height)
+            if ph + 8 > max_row_height:
+                max_row_height = ph + 8
 
         # رسم سلول‌ها
         for para, w, x in cell_paragraphs:
-            pdf.rect(x, y-max_row_height, w, max_row_height)
-            wrapped_width, wrapped_height = para.wrap(w-4, max_row_height-4)
-            para.drawOn(pdf, x+2, y - wrapped_height - 2)
+            pdf.rect(x, y-max_row_height, w, max_row_height)  # قاب
+            para_height = para.wrap(w-4, max_row_height-4)[1]
+            para.drawOn(pdf, x+2, y - para_height - 4)
 
         y -= max_row_height
 
-        if y < 50:
+        if y < 80:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
 
+    # پایان
     pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -346,6 +350,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
