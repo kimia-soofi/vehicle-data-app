@@ -158,30 +158,30 @@ def admin_reject(model,fname):
 
 
 # ----- دانلود PDF کل فرم
-from flask import send_file, flash, redirect, url_for, session
-import io, os, json, re
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 import arabic_reshaper
 from bidi.algorithm import get_display
+import io, os, json, re
+from flask import send_file, flash, redirect, url_for, session
 
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
 def reshape_text(text):
-    text = str(text)
-    reshaped_text = arabic_reshaper.reshape(text)
+    reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"): 
         return redirect(url_for("admin_login"))
-    
+
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
     if not os.path.isfile(fpath):
         flash("فایل پیدا نشد ❌")
@@ -191,74 +191,85 @@ def download_pdf(model, fname):
         data = json.load(f)
 
     pdf_io = io.BytesIO()
-
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
 
-    # استایل‌ها
-    farsi_style = ParagraphStyle(name="Farsi", fontName="Vazir", fontSize=10, alignment=2)  # راست‌چین
-    eng_style = ParagraphStyle(name="English", fontName="Vazir", fontSize=10, alignment=0)  # چپ‌چین
-    header_style = ParagraphStyle(name="Header", fontName="Vazir", fontSize=12, alignment=2, spaceAfter=5)
-
-    doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=40)
+    doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=50)
     elements = []
 
-    # عنوان فرم
-    elements.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), header_style))
+    # سبک‌ها
+    farsi_style = ParagraphStyle(name="Farsi", fontName="Vazir", fontSize=10, leading=12, alignment=TA_RIGHT)
+    eng_style = ParagraphStyle(name="English", fontName="Vazir", fontSize=10, leading=12, alignment=TA_LEFT)
+    title_style = ParagraphStyle(name="Title", fontName="Vazir", fontSize=14, alignment=TA_RIGHT)
+
+    # عنوان
+    elements.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), title_style))
     elements.append(Spacer(1, 12))
 
     # اطلاعات متا
-    meta_data = []
     for k, v in data["meta"].items():
         val_str = str(v)
-        key_paragraph = Paragraph(f"{k}:", eng_style)  # کلید همیشه چپ‌چین
+        key_para = Paragraph(f"{k}:", eng_style)  # کلید همیشه چپ
         if is_farsi(val_str):
-            val_paragraph = Paragraph(reshape_text(val_str), farsi_style)
+            val_para = Paragraph(reshape_text(val_str), farsi_style)
         else:
-            val_paragraph = Paragraph(val_str, eng_style)
-        meta_data.append([key_paragraph, val_paragraph])
-        meta_data.append([Spacer(1,5), Spacer(1,5)])  # فاصله بین خطوط
+            val_para = Paragraph(val_str, eng_style)
+        elements.append(key_para)
+        elements.append(val_para)
 
-    meta_table = Table(meta_data, colWidths=[100, 400])
-    meta_table.setStyle(TableStyle([
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),0),
-        ('RIGHTPADDING',(0,0),(-1,-1),0),
-    ]))
-    elements.append(meta_table)
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(reshape_text("جدول مشاهدات:"), farsi_style))
+    elements.append(Spacer(1, 6))
 
-    # جدول مشاهدات
+    # جدول
+    col_specs = [
+        ("ردیف", 30),
+        ("ایرادات فنی", 130),
+        ("شرایط بروز ایراد", 130),
+        ("کیلومتر", 60),
+        ("نظر سرپرست", 80),
+    ]
+
+    # داده جدول
     table_data = []
-    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
-    # راست‌چین برای هدر
-    header_row = [Paragraph(reshape_text(h), header_style) for h in headers]
+    # هدر
+    header_row = [Paragraph(reshape_text(h), farsi_style if is_farsi(h) else eng_style) for h, w in col_specs]
     table_data.append(header_row)
 
-    col_widths = [30, 130, 130, 60, 80]
-
     for r in data["observations"]:
-        row_cells = []
-        for h, w, key in zip(headers, col_widths, ["row","issue","condition","km","supervisor_comment"]):
-            val = str(r[key]) if r[key] is not None else ""
-            if is_farsi(val):
-                row_cells.append(Paragraph(reshape_text(val), farsi_style))
-            else:
-                row_cells.append(Paragraph(val, eng_style))
-        table_data.append(row_cells)
+        row_data = [
+            r["row"],
+            r["issue"],
+            r["condition"],
+            r["km"],
+            r["supervisor_comment"]
+        ]
+        row_paras = []
+        for val, (h, w) in zip(row_data, col_specs):
+            val_str = str(val) if val is not None else ""
+            style = farsi_style if is_farsi(val_str) else eng_style
+            text = reshape_text(val_str) if is_farsi(val_str) else val_str
+            row_paras.append(Paragraph(text, style))
+        table_data.append(row_paras)
 
-    # جدول نهایی
-    obs_table = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
-    obs_table.setStyle(TableStyle([
-        ('GRID',(0,0),(-1,-1),1,colors.black),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('ALIGN',(0,0),(-1,0),'CENTER'),  # هدر وسط چین
-        ('ALIGN',(0,1),(-1,-1),'RIGHT'),  # سلول‌ها راست‌چین
+    # عرض ستون‌ها
+    col_widths = [w for h, w in col_specs]
+
+    table = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
+    table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), 'Vazir'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),  # هدر
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
     ]))
-    elements.append(obs_table)
+
+    elements.append(table)
 
     doc.build(elements)
-    pdf_io.seek(0)
 
+    pdf_io.seek(0)
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
@@ -328,6 +339,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
