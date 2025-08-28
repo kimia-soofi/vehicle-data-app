@@ -159,14 +159,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 import arabic_reshaper
 from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_RIGHT, TA_LEFT
-
 
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
@@ -204,16 +203,11 @@ def download_pdf(model, fname):
     pdf.setFont("Vazir", 12)
     for k, v in data["meta"].items():
         val_str = str(v)
-
-        # کلید (k) همیشه چپ‌چین
-        pdf.drawString(40, y, f"{k}:")
-
-        # مقدار (v) بر اساس زبان
+        pdf.drawString(40, y, f"{k}:")  # کلید همیشه چپ
         if is_farsi(val_str):
             pdf.drawRightString(width-100, y, reshape_text(val_str))
         else:
             pdf.drawString(120, y, val_str)
-
         y -= 20
 
     y -= 10
@@ -226,7 +220,7 @@ def download_pdf(model, fname):
         ("ایرادات فنی", 130),
         ("شرایط بروز ایراد", 130),
         ("کیلومتر", 60),
-        ("نظر سرپرست", 100),
+        ("نظر سرپرست", 80),
     ]
 
     # محاسبه x از راست
@@ -237,6 +231,7 @@ def download_pdf(model, fname):
         x_cursor -= w
 
     # هدر جدول
+    pdf.setFont("Vazir", 12)
     for (h, w), x in zip(col_specs, x_positions):
         pdf.rect(x, y-20, w, 20)
         if is_farsi(h):
@@ -245,62 +240,46 @@ def download_pdf(model, fname):
             pdf.drawString(x+2, y-15, h)
     y -= 20
 
-    # --- استایل‌ها برای متن فارسی و انگلیسی
-    farsi_style = ParagraphStyle(
-        'farsi',
-        fontName='Vazir',
-        fontSize=10,
-        leading=12,
-        alignment=TA_RIGHT
-    )
-    eng_style = ParagraphStyle(
-        'eng',
-        fontName='Vazir',
-        fontSize=10,
-        leading=12,
-        alignment=TA_LEFT
-    )
+    # آماده‌سازی استایل پاراگراف
+    styles = {
+        'right': ParagraphStyle(name='right', fontName='Vazir', fontSize=10, alignment=TA_RIGHT),
+        'left': ParagraphStyle(name='left', fontName='Vazir', fontSize=10, alignment=TA_LEFT),
+    }
 
     # ردیف‌ها
-    default_row_height = 40
+    max_row_height = 40  # ارتفاع هر سلول (می‌توانید تغییر دهید)
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
-        max_row_height = default_row_height
+        # جمع‌آوری پاراگراف‌ها
         cell_paragraphs = []
-
-        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
-        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
-            cell_str = str(cell) if cell is not None else ""
-            style = farsi_style if is_farsi(cell_str) else eng_style
-            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
-            para = Paragraph(content, style)
+        for (cell, (h, w), x) in zip(row_data, col_specs, x_positions):
+            cell_str = "" if cell is None else str(cell)
+            if is_farsi(cell_str):
+                para = Paragraph(reshape_text(cell_str), styles['right'])
+            else:
+                para = Paragraph(cell_str, styles['left'])
             cell_paragraphs.append((para, w, x))
-
-            _, ph = para.wrap(w-4, default_row_height)
-            if ph > max_row_height:
-                max_row_height = ph + 8
 
         # رسم سلول‌ها
         for para, w, x in cell_paragraphs:
-            pdf.rect(x, y-max_row_height, w, max_row_height)  # قاب
-            para.wrapOn(pdf, w-4, max_row_height-4)
-            para.drawOn(pdf, x+2, y-max_row_height+2)
+            pdf.rect(x, y-max_row_height, w, max_row_height)
+            wrapped_width, wrapped_height = para.wrap(w-4, max_row_height-4)
+            para.drawOn(pdf, x+2, y - wrapped_height - 2)
 
-        # بعدی
         y -= max_row_height
 
-        if y < 80:  # صفحه جدید
+        if y < 50:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
 
-    # پایان
     pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -367,6 +346,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
