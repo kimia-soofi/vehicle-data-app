@@ -175,7 +175,8 @@ def download_pdf(model, fname):
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # --- HTML قالب PDF ---
+    pdf_io = io.BytesIO()
+
     html_content = f"""
     <html>
     <head>
@@ -185,33 +186,63 @@ def download_pdf(model, fname):
             font-family: 'Vazir';
             src: url('/static/Vazirmatn-Regular.ttf');
         }}
-        body {{ font-family: 'Vazir', sans-serif; direction: rtl; }}
-        h2 {{ text-align: center; }}
-        table {{ border-collapse: collapse; width: 100%; direction: rtl; }}
-        td, th {{ border: 1px solid black; padding: 5px; vertical-align: top; }}
-        th {{ background-color: #ccc; }}
+        body {{
+            font-family: 'Vazir', sans-serif;
+            direction: rtl;
+            font-size: 14px;
+            margin: 20px;
+        }}
+        h2 {{
+            text-align: center;
+            font-size: 20px;
+            margin-bottom: 20px;
+        }}
+        .meta {{
+            margin-bottom: 25px;
+        }}
+        .meta p {{
+            margin: 5px 0;
+            font-size: 14px;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: fixed;
+            word-wrap: break-word;
+            font-size: 13px;
+        }}
+        th, td {{
+            border: 1px solid black;
+            padding: 5px;
+            vertical-align: top;
+        }}
+        th {{
+            background-color: #e0e0e0;
+        }}
     </style>
     </head>
     <body>
-    <h2>فرم ارزیابی خودرو</h2>
-    <p><strong>Evaluator:</strong> {data["meta"]["evaluator"]}</p>
-    <p><strong>Vehicle Type:</strong> {data["meta"]["vehicle_type"]}</p>
-    <p><strong>VIN:</strong> {data["meta"]["vin"]}</p>
-    <p><strong>Evaluation Date:</strong> {data["meta"]["eval_date"]}</p>
-    <p><strong>Distance:</strong> {data["meta"]["distance"]}</p>
+        <h2>فرم ارزیابی خودرو</h2>
 
-    <h3>جدول مشاهدات:</h3>
-    <table>
-        <tr>
-            <th>ردیف</th>
-            <th>ایرادات فنی</th>
-            <th>شرایط بروز ایراد</th>
-            <th>کیلومتر</th>
-            <th>نظر سرپرست</th>
-        </tr>
+        <div class="meta">
+            <p><strong>Evaluator:</strong> {data["meta"]["evaluator"]}</p>
+            <p><strong>Vehicle Type:</strong> {data["meta"]["vehicle_type"]}</p>
+            <p><strong>VIN:</strong> {data["meta"]["vin"]}</p>
+            <p><strong>Evaluation Date:</strong> {data["meta"]["eval_date"]}</p>
+            <p><strong>Distance:</strong> {data["meta"]["distance"]}</p>
+        </div>
+
+        <h3>جدول مشاهدات:</h3>
+        <table>
+            <tr>
+                <th style="width:5%;">ردیف</th>
+                <th style="width:35%;">ایرادات فنی</th>
+                <th style="width:35%;">شرایط بروز ایراد</th>
+                <th style="width:10%;">کیلومتر</th>
+                <th style="width:15%;">نظر سرپرست</th>
+            </tr>
     """
 
-    # اضافه کردن ردیف‌ها
     for r in data["observations"]:
         html_content += f"""
         <tr>
@@ -224,20 +255,17 @@ def download_pdf(model, fname):
         """
 
     html_content += """
-    </table>
+        </table>
     </body>
     </html>
     """
 
-    # --- تولید PDF ---
-    pdf_io = io.BytesIO()
-    HTML(string=html_content, base_url=".").write_pdf(pdf_io, stylesheets=[
-        CSS(string='@font-face { font-family: "Vazir"; src: url("/static/Vazirmatn-Regular.ttf"); }')
-    ])
+    HTML(string=html_content, base_url=".").write_pdf(pdf_io)
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -303,6 +331,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
