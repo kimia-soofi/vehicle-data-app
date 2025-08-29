@@ -169,7 +169,6 @@ from flask import send_file, flash, redirect, url_for, session
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
-from reportlab.lib.colors import black
 
 
 def is_farsi(text):
@@ -249,87 +248,55 @@ def download_pdf(model, fname):
             pdf.drawString(x+2, y-15, h)
     y -= 20
 
-    # استایل‌ها برای متن فارسی و انگلیسی
+    # --- استایل‌ها برای متن فارسی و انگلیسی
     farsi_style = ParagraphStyle(
         'farsi',
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_RIGHT,
-        textColor=black
+        alignment=TA_RIGHT
     )
     eng_style = ParagraphStyle(
         'eng',
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_LEFT,
-        textColor=black
+        alignment=TA_LEFT
     )
 
-    # ردیف‌ها - راه حل کاملاً جدید
+    # ردیف‌ها - تغییر اصلی اینجاست: لیست observations را معکوس می‌کنیم
     default_row_height = 40
-    for r in data["observations"]:
+    for r in reversed(data["observations"]):  # استفاده از reversed برای معکوس کردن ترتیب
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
-        # محاسبه ارتفاع مورد نیاز برای هر سلول
         max_row_height = default_row_height
-        cell_contents = []
-        
-        for cell, (h, w) in zip(row_data, col_specs):
+        cell_paragraphs = []
+
+        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
+        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
             cell_str = str(cell) if cell is not None else ""
             style = farsi_style if is_farsi(cell_str) else eng_style
             content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
-            
-            # ایجاد پاراگراف و محاسبه ارتفاع
             para = Paragraph(content, style)
-            available_width = w - 4
-            para.wrap(available_width, 1000)  # ارتفاع زیاد برای محاسبه
-            
-            # محاسبه ارتفاع واقعی پاراگراف
-            actual_height = para.height
-            
-            if actual_height + 8 > max_row_height:
-                max_row_height = actual_height + 8
-            
-            cell_contents.append({
-                'para': para,
-                'width': w,
-                'height': actual_height,
-                'content': content
-            })
+            cell_paragraphs.append((para, w, x))
 
-        # بررسی اگر فضای کافی وجود ندارد
-        if y - max_row_height < 50:
+            _, ph = para.wrap(w-4, default_row_height)
+            if ph > max_row_height:
+                max_row_height = ph + 8
+
+        # رسم سلول‌ها
+        for para, w, x in cell_paragraphs:
+            pdf.rect(x, y-max_row_height, w, max_row_height)  # قاب
+            para.wrapOn(pdf, w-4, max_row_height-4)
+            para.drawOn(pdf, x+2, y-max_row_height+2)
+
+        # بعدی
+        y -= max_row_height
+
+        if y < 80:  # صفحه جدید
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
-            # رسم هدر جدول در صفحه جدید
-            for (h, w), x in zip(col_specs, x_positions):
-                pdf.rect(x, y-20, w, 20)
-                if is_farsi(h):
-                    pdf.drawRightString(x+w-2, y-15, reshape_text(h))
-                else:
-                    pdf.drawString(x+2, y-15, h)
-            y -= 20
-
-        # رسم سلول‌های این ردیف
-        for i, (content_info, x) in enumerate(zip(cell_contents, x_positions)):
-            w = content_info['width']
-            para = content_info['para']
-            
-            # رسم قاب سلول
-            pdf.rect(x, y - max_row_height, w, max_row_height)
-            
-            # محاسبه موقعیت Y برای محتوا
-            # محتوا باید از بالای سلول شروع شود
-            content_top = y - 2  # 2 پیکسل فاصله از بالای سلول
-            
-            # رسم پاراگراف - از بالای سلول به پایین
-            para.drawOn(pdf, x + 2, content_top - para.height)
-
-        # کاهش موقعیت Y برای ردیف بعدی
-        y -= max_row_height
 
     # پایان
     pdf.save()
@@ -337,6 +304,7 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -398,6 +366,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
