@@ -158,53 +158,25 @@ def admin_reject(model,fname):
 
 
 # ----- دانلود PDF کل فرم
-from flask import send_file, flash, redirect, url_for, session
-import io, os, json, re
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
 import arabic_reshaper
 from bidi.algorithm import get_display
-from reportlab.platypus.flowables import KeepInFrame
-from reportlab.lib.units import mm
+import io, os, json, re
+from flask import send_file, flash, redirect, url_for, session
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT
+
 
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
 def reshape_text(text):
-    if text is None:
-        return ""
-    try:
-        reshaped_text = arabic_reshaper.reshape(str(text))
-        return get_display(reshaped_text)
-    except:
-        return str(text)
-
-class RTLParagraph(Paragraph):
-    """کلاس سفارشی برای پاراگراف‌های راست‌چین"""
-    def __init__(self, text, style, **kwargs):
-        if is_farsi(text):
-            text = reshape_text(text)
-        super().__init__(text, style, **kwargs)
-
-def create_custom_paragraph(text, style, is_rtl=False):
-    """ایجاد پاراگراف با پشتیبانی از RTL"""
-    if text is None:
-        text = ""
-    
-    if is_rtl or is_farsi(str(text)):
-        text = reshape_text(str(text))
-        # برای متن فارسی از تراز راست استفاده می‌کنیم
-        style = style.clone('temp', alignment=TA_RIGHT)
-    else:
-        # برای متن انگلیسی از تراز چپ استفاده می‌کنیم
-        style = style.clone('temp', alignment=TA_LEFT)
-    
-    return Paragraph(text, style)
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    return get_display(reshaped_text)
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
@@ -220,168 +192,125 @@ def download_pdf(model, fname):
         data = json.load(f)
 
     pdf_io = io.BytesIO()
+    pdf = canvas.Canvas(pdf_io, pagesize=A4)
+    width, height = A4
 
-    # ثبت فونت
+    # فونت فارسی
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
-
-    # تنظیمات سبک‌ها
-    base_style = ParagraphStyle(
-        name='Base', 
-        fontName='Vazir', 
-        fontSize=10,
-        leading=14,
-        wordWrap='CJK'  # برای پشتیبانی از wrap کردن متن فارسی
-    )
-    
-    farsi_style = base_style.clone(
-        'Farsi',
-        alignment=TA_RIGHT,
-        spaceBefore=3,
-        spaceAfter=3
-    )
-    
-    eng_style = base_style.clone(
-        'Eng',
-        alignment=TA_LEFT,
-        spaceBefore=3,
-        spaceAfter=3
-    )
-    
-    title_style = ParagraphStyle(
-        name='Title', 
-        fontName='Vazir', 
-        fontSize=16, 
-        alignment=TA_RIGHT,
-        textColor=colors.darkblue,
-        spaceAfter=12
-    )
-    
-    header_style = ParagraphStyle(
-        name='Header', 
-        fontName='Vazir', 
-        fontSize=11, 
-        alignment=TA_CENTER,
-        textColor=colors.white,
-        backColor=colors.darkblue,
-        spaceBefore=5,
-        spaceAfter=5
-    )
-
-    doc = SimpleDocTemplate(
-        pdf_io, 
-        pagesize=A4, 
-        rightMargin=20*mm, 
-        leftMargin=20*mm, 
-        topMargin=15*mm, 
-        bottomMargin=15*mm
-    )
-    elements = []
+    pdf.setFont("Vazir", 14)
 
     # عنوان
-    elements.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), title_style))
-    elements.append(Spacer(1, 15))
+    pdf.drawCentredString(width/2, height-50, reshape_text("فرم ارزیابی خودرو"))
 
     # اطلاعات متا
-    meta_style = ParagraphStyle(
-        name='Meta',
-        fontName='Vazir',
-        fontSize=10,
-        alignment=TA_RIGHT,
-        leading=16
-    )
-    
+    y = height - 80
+    pdf.setFont("Vazir", 12)
     for k, v in data["meta"].items():
-        key_text = f"<b>{k}:</b>"
-        val_text = str(v) if v is not None else ""
-        
-        if is_farsi(val_text):
-            full_text = f"{key_text} {reshape_text(val_text)}"
+        val_str = str(v)
+
+        # کلید (k) همیشه چپ‌چین
+        pdf.drawString(40, y, f"{k}:")
+
+        # مقدار (v) بر اساس زبان
+        if is_farsi(val_str):
+            pdf.drawRightString(width-100, y, reshape_text(val_str))
         else:
-            full_text = f"{key_text} {val_text}"
-        
-        elements.append(Paragraph(full_text, meta_style))
-        elements.append(Spacer(1, 5))
+            pdf.drawString(120, y, val_str)
 
-    elements.append(Spacer(1, 15))
+        y -= 20
 
-    # عنوان جدول مشاهدات
-    elements.append(Paragraph(reshape_text("جدول مشاهدات:"), farsi_style))
-    elements.append(Spacer(1, 8))
+    y -= 10
+    pdf.drawRightString(width-40, y, reshape_text("جدول مشاهدات:"))
+    y -= 25
 
-    # جدول مشاهدات - ترتیب ستون‌ها از چپ به راست
+    # ستون‌ها: ترتیب از راست به چپ
     col_specs = [
-        ("ردیف", 15*mm),
-        ("ایرادات فنی", 45*mm),
-        ("شرایط بروز ایراد", 45*mm),
-        ("کیلومتر", 25*mm),
-        ("نظر سرپرست", 40*mm),
+        ("ردیف", 30),
+        ("ایرادات فنی", 130),
+        ("شرایط بروز ایراد", 130),
+        ("کیلومتر", 60),
+        ("نظر سرپرست", 100),
     ]
 
+    # محاسبه x از راست
+    x_positions = []
+    x_cursor = width - 40
+    for name, w in col_specs:
+        x_positions.append(x_cursor - w)
+        x_cursor -= w
+
     # هدر جدول
-    table_data = []
-    headers = [Paragraph(reshape_text(h), header_style) for h, w in col_specs]
-    table_data.append(headers)
+    for (h, w), x in zip(col_specs, x_positions):
+        pdf.rect(x, y-20, w, 20)
+        if is_farsi(h):
+            pdf.drawRightString(x+w-2, y-15, reshape_text(h))
+        else:
+            pdf.drawString(x+2, y-15, h)
+    y -= 20
 
-    # ردیف‌ها
-    for idx, r in enumerate(data["observations"], 1):
-        row_data = [
-            create_custom_paragraph(str(idx), eng_style),  # شماره ردیف - چپ‌چین
-            create_custom_paragraph(r.get("issue", ""), farsi_style, True),  # فارسی - راست‌چین
-            create_custom_paragraph(r.get("condition", ""), farsi_style, True),  # فارسی - راست‌چین
-            create_custom_paragraph(r.get("km", ""), eng_style),  # عدد - چپ‌چین
-            create_custom_paragraph(r.get("supervisor_comment", ""), farsi_style, True)  # فارسی - راست‌چین
-        ]
-        table_data.append(row_data)
-
-    col_widths = [w for h, w in col_specs]
-    table = Table(
-        table_data, 
-        colWidths=col_widths,
-        repeatRows=1  # تکرار هدر در صفحات بعدی
+    # استایل‌ها برای متن فارسی و انگلیسی
+    farsi_style = ParagraphStyle(
+        'farsi',
+        fontName='Vazir',
+        fontSize=10,
+        leading=12,
+        alignment=TA_RIGHT
     )
-    
-    # استایل جدول
-    table_style = TableStyle([
-        # استایل هدر
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2c3e50')),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (0,0), (-1,0), 'CENTER'),
-        ('VALIGN', (0,0), (-1,0), 'MIDDLE'),
-        ('FONTNAME', (0,0), (-1,0), 'Vazir'),
-        ('FONTSIZE', (0,0), (-1,0), 11),
-        ('BOTTOMPADDING', (0,0), (-1,0), 8),
-        ('TOPPADDING', (0,0), (-1,0), 8),
-        
-        # استایل داده‌ها
-        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#ecf0f1')),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#bdc3c7')),
-        ('VALIGN', (0,1), (-1,-1), 'TOP'),
-        ('FONTNAME', (0,1), (-1,-1), 'Vazir'),
-        ('FONTSIZE', (0,1), (-1,-1), 10),
-        ('LEADING', (0,1), (-1,-1), 14),
-        ('TOPPADDING', (0,1), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 6),
-        ('LEFTPADDING', (0,1), (-1,-1), 4),
-        ('RIGHTPADDING', (0,1), (-1,-1), 4),
-        
-        # تراز ستون‌ها
-        ('ALIGN', (0,1), (0,-1), 'CENTER'),  # ستون ردیف - وسط‌چین
-        ('ALIGN', (1,1), (1,-1), 'RIGHT'),   # ستون ایرادات - راست‌چین
-        ('ALIGN', (2,1), (2,-1), 'RIGHT'),   # ستون شرایط - راست‌چین
-        ('ALIGN', (3,1), (3,-1), 'CENTER'),  # ستون کیلومتر - وسط‌چین
-        ('ALIGN', (4,1), (4,-1), 'RIGHT'),   # ستون نظر - راست‌چین
-    ])
-    
-    table.setStyle(table_style)
-    elements.append(table)
+    eng_style = ParagraphStyle(
+        'eng',
+        fontName='Vazir',
+        fontSize=10,
+        leading=12,
+        alignment=TA_LEFT
+    )
 
-    doc.build(elements)
+    # ردیف‌ها - راه حل اول با تراز عمودی وسط
+    default_row_height = 40
+    for r in data["observations"]:
+        row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
+
+        max_row_height = default_row_height
+        cell_paragraphs = []
+
+        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
+        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
+            cell_str = str(cell) if cell is not None else ""
+            style = farsi_style if is_farsi(cell_str) else eng_style
+            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
+            para = Paragraph(content, style)
+            cell_paragraphs.append((para, w, x))
+
+            # محاسبه ارتفاع مورد نیاز برای این سلول
+            _, ph = para.wrap(w-4, default_row_height)
+            if ph > max_row_height:
+                max_row_height = ph + 8
+
+        # رسم سلول‌ها و محتوای آنها
+        for (para, w, x) in cell_paragraphs:
+            # رسم قاب سلول
+            pdf.rect(x, y - max_row_height, w, max_row_height)
+            
+            # محاسبه موقعیت عمودی برای محتوا (مرکز عمودی)
+            content_height = para.wrap(w-4, max_row_height-4)[1]
+            vertical_offset = (max_row_height - content_height) / 2
+            
+            # رسم محتوا در سلول
+            para.drawOn(pdf, x + 2, y - max_row_height + vertical_offset)
+
+        # کاهش موقعیت y برای ردیف بعدی
+        y -= max_row_height
+
+        if y < 80:  # صفحه جدید در صورت نیاز
+            pdf.showPage()
+            pdf.setFont("Vazir", 12)
+            y = height - 50
+
+    # پایان
+    pdf.save()
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
-
 
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
@@ -443,6 +372,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
