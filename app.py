@@ -264,7 +264,7 @@ def download_pdf(model, fname):
         alignment=TA_LEFT
     )
 
-    # ردیف‌ها - راه حل اول با تراز عمودی وسط
+    # ردیف‌ها - راه حل دوم ساده‌تر
     default_row_height = 40
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
@@ -285,19 +285,14 @@ def download_pdf(model, fname):
             if ph > max_row_height:
                 max_row_height = ph + 8
 
-        # رسم سلول‌ها و محتوای آنها
+        # رسم سلول‌ها
         for (para, w, x) in cell_paragraphs:
-            # رسم قاب سلول
             pdf.rect(x, y - max_row_height, w, max_row_height)
             
-            # محاسبه موقعیت عمودی برای محتوا (مرکز عمودی)
-            content_height = para.wrap(w-4, max_row_height-4)[1]
-            vertical_offset = (max_row_height - content_height) / 2
-            
-            # رسم محتوا در سلول
-            para.drawOn(pdf, x + 2, y - max_row_height + vertical_offset)
+            # رسم محتوا از بالا به پایین
+            para.wrapOn(pdf, w-4, max_row_height-4)
+            para.drawOn(pdf, x+2, y - max_row_height + 2)
 
-        # کاهش موقعیت y برای ردیف بعدی
         y -= max_row_height
 
         if y < 80:  # صفحه جدید در صورت نیاز
@@ -311,7 +306,6 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
 def admin_car_models():
@@ -372,6 +366,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
