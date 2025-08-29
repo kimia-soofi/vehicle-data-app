@@ -1,12 +1,9 @@
 Flask
 pandas
-openpyxl
 jdatetime
-reportlab
-fpdf
-python-bidi
 weasyprint
-arabic-reshaper
+
+
 
 
 
