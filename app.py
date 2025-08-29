@@ -263,6 +263,7 @@ def download_pdf(model, fname):
 
 
 
+
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
 def admin_car_models():
@@ -323,6 +324,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
