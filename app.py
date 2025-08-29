@@ -190,7 +190,7 @@ def download_pdf(model, fname):
     <head>
     <meta charset="utf-8">
     <style>
-        @page {{ margin: 25px; }}
+        @page {{ margin-top:25px; margin-right:25px; margin-bottom:25px; margin-left:15px; }}
         @font-face {{
             font-family: 'Vazirmatn';
             src: url('file://{font_path}') format('truetype');
@@ -352,6 +352,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
