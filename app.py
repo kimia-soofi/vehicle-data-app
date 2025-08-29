@@ -161,6 +161,10 @@ from flask import send_file, flash, redirect, url_for, session
 import io, os, json
 from weasyprint import HTML, CSS
 
+from flask import send_file, flash, redirect, url_for, session
+import io, os, json
+from weasyprint import HTML
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -175,6 +179,12 @@ def download_pdf(model, fname):
         data = json.load(f)
 
     font_path = os.path.abspath(os.path.join("static", "Vazirmatn-Regular.ttf"))
+    
+    left_margin = 40
+    right_margin = 40
+    table_width = 595 - left_margin - right_margin  # عرض A4 ~595pt
+    col_ratios = [0.06, 0.32, 0.32, 0.1, 0.2]     # نسبت ستون‌ها به عرض جدول
+
     html_content = f"""
     <html>
     <head>
@@ -190,7 +200,6 @@ def download_pdf(model, fname):
             direction: rtl;
             color: #333;
             line-height: 1.4;
-            font-size: 13px;
         }}
         h2 {{
             text-align: center;
@@ -202,26 +211,26 @@ def download_pdf(model, fname):
             background-color: #f5f5f5;
             padding: 12px;
             border-radius: 6px;
-            margin: 0 25px 20px 25px;
+            margin-bottom: 20px;
         }}
         .meta p {{
             margin: 4px 0;
             font-size: 14px;
         }}
-        .table-wrapper {{
-            margin: 0 25px; /* فاصله از چپ و راست */
-        }}
         table {{
             border-collapse: collapse;
-            width: 100%;
+            width: {table_width}px;
+            margin-left: {left_margin}px;
+            margin-right: {right_margin}px;
             table-layout: fixed;
             word-wrap: break-word;
-            font-size: 12px;
+            font-size: 13px;
         }}
         th, td {{
             border: 1px solid #ccc;
             padding: 6px;
             vertical-align: top;
+            word-wrap: break-word;
         }}
         th {{
             background-color: #005baa;
@@ -242,30 +251,28 @@ def download_pdf(model, fname):
             <p><strong>تاریخ ارزیابی:</strong> {data["meta"]["eval_date"]}</p>
             <p><strong>مسافت طی شده:</strong> {data["meta"]["distance"]}</p>
         </div>
-        <h3 style="margin:0 25px 10px 25px;">جدول مشاهدات:</h3>
-        <div class="table-wrapper">
-            <table>
-                <tr>
-                    <th style="width:6%;">ردیف</th>
-                    <th style="width:32%;">ایرادات فنی</th>
-                    <th style="width:32%;">شرایط بروز ایراد</th>
-                    <th style="width:10%;">کیلومتر</th>
-                    <th style="width:20%;">نظر سرپرست</th>
-                </tr>
+        <h3>جدول مشاهدات:</h3>
+        <table>
+            <tr>
     """
+
+    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
+    for header, ratio in zip(headers, col_ratios):
+        width = int(table_width * ratio)
+        html_content += f"<th style='width:{width}px'>{header}</th>"
+    html_content += "</tr>"
+
     for r in data["observations"]:
-        html_content += f"""
-                <tr>
-                    <td>{r.get('row', '')}</td>
-                    <td>{r.get('issue', '')}</td>
-                    <td>{r.get('condition', '')}</td>
-                    <td>{r.get('km', '')}</td>
-                    <td>{r.get('supervisor_comment', '')}</td>
-                </tr>
-        """
+        html_content += "<tr>"
+        html_content += f"<td>{r.get('row','')}</td>"
+        html_content += f"<td>{r.get('issue','')}</td>"
+        html_content += f"<td>{r.get('condition','')}</td>"
+        html_content += f"<td>{r.get('km','')}</td>"
+        html_content += f"<td>{r.get('supervisor_comment','')}</td>"
+        html_content += "</tr>"
+
     html_content += """
-            </table>
-        </div>
+        </table>
     </body>
     </html>
     """
@@ -276,7 +283,6 @@ def download_pdf(model, fname):
 
     pdf_name = f"{data['meta']['eval_date']}_{data['meta']['vehicle_type']}_{data['meta']['vin']}_{data['meta']['evaluator']}.pdf"
     return send_file(pdf_io, download_name=pdf_name, as_attachment=True, mimetype="application/pdf")
-
 
 
 
@@ -346,6 +352,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
