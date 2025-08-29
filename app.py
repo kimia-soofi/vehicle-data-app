@@ -166,16 +166,35 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-from reportlab.lib.enums import TA_RIGHT, TA_LEFT
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
 import arabic_reshaper
 from bidi.algorithm import get_display
+from reportlab.platypus.flowables import KeepInFrame
+from reportlab.lib.units import mm
 
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
 def reshape_text(text):
+    if text is None:
+        return ""
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
+
+def create_farsi_paragraph(text, style, max_width=None):
+    """ایجاد پاراگراف فارسی با قابلیت نگهداری در قاب"""
+    if text is None:
+        text = ""
+    
+    if is_farsi(str(text)):
+        text = reshape_text(str(text))
+        para = Paragraph(text, style)
+    else:
+        para = Paragraph(str(text), style)
+    
+    if max_width:
+        return KeepInFrame(max_width, 1000, [para])
+    return para
 
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
@@ -196,66 +215,134 @@ def download_pdf(model, fname):
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
 
     # تنظیمات سبک‌ها
-    farsi_style = ParagraphStyle(name='Farsi', fontName='Vazir', fontSize=12, alignment=TA_RIGHT)
-    eng_style = ParagraphStyle(name='Eng', fontName='Vazir', fontSize=12, alignment=TA_LEFT)
-    title_style = ParagraphStyle(name='Title', fontName='Vazir', fontSize=14, alignment=TA_RIGHT)
+    farsi_style = ParagraphStyle(
+        name='Farsi', 
+        fontName='Vazir', 
+        fontSize=10, 
+        alignment=TA_RIGHT,
+        wordWrap='RTL',
+        leading=14
+    )
+    
+    eng_style = ParagraphStyle(
+        name='Eng', 
+        fontName='Vazir', 
+        fontSize=10, 
+        alignment=TA_LEFT,
+        leading=14
+    )
+    
+    title_style = ParagraphStyle(
+        name='Title', 
+        fontName='Vazir', 
+        fontSize=16, 
+        alignment=TA_RIGHT,
+        textColor=colors.darkblue,
+        spaceAfter=12
+    )
+    
+    header_style = ParagraphStyle(
+        name='Header', 
+        fontName='Vazir', 
+        fontSize=11, 
+        alignment=TA_CENTER,
+        textColor=colors.white,
+        backColor=colors.darkblue
+    )
 
-    doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=40)
+    doc = SimpleDocTemplate(
+        pdf_io, 
+        pagesize=A4, 
+        rightMargin=30*mm, 
+        leftMargin=30*mm, 
+        topMargin=20*mm, 
+        bottomMargin=20*mm
+    )
     elements = []
 
     # عنوان
     elements.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), title_style))
-    elements.append(Spacer(1, 12))
 
     # اطلاعات متا
+    meta_table_data = []
     for k, v in data["meta"].items():
-        val_str = str(v)
-        key_text = Paragraph(f"{k}:", eng_style)  # کلید همیشه انگلیسی/چپ
-        if is_farsi(val_str):
-            val_text = Paragraph(reshape_text(val_str), farsi_style)
-        else:
-            val_text = Paragraph(val_str, eng_style)
-        elements.append(Paragraph(f"{key_text.getPlainText()} {val_text.getPlainText()}", farsi_style))
-        elements.append(Spacer(1, 6))
+        key_text = create_farsi_paragraph(f"{k}:", eng_style)
+        val_text = create_farsi_paragraph(v, farsi_style if is_farsi(str(v)) else eng_style)
+        meta_table_data.append([key_text, val_text])
+    
+    meta_table = Table(
+        meta_table_data, 
+        colWidths=[40*mm, 100*mm],
+        hAlign='RIGHT'
+    )
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (0,0), (0,-1), 'LEFT'),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('FONTNAME', (0,0), (-1,-1), 'Vazir'),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    
+    elements.append(meta_table)
+    elements.append(Spacer(1, 15))
 
-    elements.append(Spacer(1, 12))
+    # عنوان جدول مشاهدات
     elements.append(Paragraph(reshape_text("جدول مشاهدات:"), farsi_style))
-    elements.append(Spacer(1, 6))
+    elements.append(Spacer(1, 8))
 
-    # جدول
+    # جدول مشاهدات
     col_specs = [
-        ("ردیف", 30),
-        ("ایرادات فنی", 130),
-        ("شرایط بروز ایراد", 130),
-        ("کیلومتر", 60),
-        ("نظر سرپرست", 80),
+        ("ردیف", 15*mm),
+        ("ایرادات فنی", 40*mm),
+        ("شرایط بروز ایراد", 40*mm),
+        ("کیلومتر", 20*mm),
+        ("نظر سرپرست", 35*mm),
     ]
 
     # هدر جدول
     table_data = []
-    headers = [reshape_text(h) for h, w in col_specs]
-    table_data.append([Paragraph(h, farsi_style) for h in headers])
+    headers = [create_farsi_paragraph(h, header_style) for h, w in col_specs]
+    table_data.append(headers)
 
     # ردیف‌ها
-    for r in data["observations"]:
-        row_data = []
-        for cell in [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]:
-            cell_str = str(cell) if cell is not None else ""
-            if is_farsi(cell_str):
-                row_data.append(Paragraph(reshape_text(cell_str), farsi_style))
-            else:
-                row_data.append(Paragraph(cell_str, eng_style))
+    for idx, r in enumerate(data["observations"], 1):
+        row_data = [
+            create_farsi_paragraph(idx, eng_style),  # شماره ردیف
+            create_farsi_paragraph(r.get("issue", ""), farsi_style, 40*mm),
+            create_farsi_paragraph(r.get("condition", ""), farsi_style, 40*mm),
+            create_farsi_paragraph(r.get("km", ""), eng_style, 20*mm),
+            create_farsi_paragraph(r.get("supervisor_comment", ""), farsi_style, 35*mm)
+        ]
         table_data.append(row_data)
 
     col_widths = [w for h, w in col_specs]
-    table = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
+    table = Table(
+        table_data, 
+        colWidths=col_widths, 
+        hAlign='RIGHT',
+        repeatRows=1  # تکرار هدر در صفحات بعدی
+    )
+    
     table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Vazir'),
+        ('FONTSIZE', (0,0), (-1,0), 11),
+        ('BOTTOMPADDING', (0,0), (-1,0), 8),
+        ('BACKGROUND', (0,1), (-1,-1), colors.beige),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('ALIGN',(0,0),(-1,0),'CENTER'),   # هدر
-        ('ALIGN',(0,1),(-1,-1),'RIGHT'),   # سلول‌ها
-        ('FONTNAME', (0,0), (-1,-1), 'Vazir'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (0,1), (-1,-1), 'RIGHT'),
+        ('ALIGN', (3,1), (3,-1), 'CENTER'),  # ستون کیلومتر
+        ('FONTNAME', (0,1), (-1,-1), 'Vazir'),
+        ('FONTSIZE', (0,1), (-1,-1), 10),
+        ('LEADING', (0,1), (-1,-1), 14),
+        ('TOPPADDING', (0,1), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,1), (-1,-1), 4),
     ]))
+    
     elements.append(table)
 
     doc.build(elements)
@@ -263,7 +350,6 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
 
 
 
@@ -331,6 +417,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
