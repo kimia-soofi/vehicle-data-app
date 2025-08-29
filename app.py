@@ -162,6 +162,10 @@ from flask import send_file, flash, redirect, url_for, session
 import io, os, json
 from weasyprint import HTML, CSS
 
+from flask import send_file, flash, redirect, url_for, session
+import io, os, json
+from weasyprint import HTML
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -175,53 +179,54 @@ def download_pdf(model, fname):
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    pdf_io = io.BytesIO()
-
-    # مسیر فونت در پروژه
-    font_path = os.path.join("static", "Vazirmatn-Regular.ttf")
-
+    font_path = os.path.abspath(os.path.join("static", "Vazirmatn-Regular.ttf"))
     html_content = f"""
     <html>
     <head>
     <meta charset="utf-8">
     <style>
+        @page {{ margin: 25px; }}
         @font-face {{
             font-family: 'Vazirmatn';
-            src: url('file://{os.path.abspath(font_path)}') format('truetype');
+            src: url('file://{font_path}') format('truetype');
         }}
         body {{
             font-family: 'Vazirmatn', sans-serif;
             direction: rtl;
-            font-size: 13px;
-            margin: 25px;
+            color: #333;
+            line-height: 1.4;
         }}
         h2 {{
             text-align: center;
-            font-size: 18px;
-            margin-bottom: 20px;
+            color: #005baa;
+            font-size: 22px;
+            margin-bottom: 15px;
         }}
         .meta {{
-            margin-bottom: 25px;
+            background-color: #f5f5f5;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
         }}
         .meta p {{
-            margin: 5px 0;
-            font-size: 13px;
+            margin: 4px 0;
+            font-size: 14px;
         }}
         table {{
             border-collapse: collapse;
             width: 100%;
             table-layout: fixed;
             word-wrap: break-word;
-            font-size: 12px;
+            font-size: 13px;
         }}
         th, td {{
-            border: 1px solid black;
+            border: 1px solid #ccc;
             padding: 6px;
             vertical-align: top;
         }}
         th {{
-            background-color: #f0f0f0;
-            font-weight: bold;
+            background-color: #005baa;
+            color: white;
             text-align: center;
         }}
         td {{
@@ -231,48 +236,46 @@ def download_pdf(model, fname):
     </head>
     <body>
         <h2>فرم ارزیابی خودرو</h2>
-
         <div class="meta">
             <p><strong>ارزیاب:</strong> {data["meta"]["evaluator"]}</p>
             <p><strong>نوع خودرو:</strong> {data["meta"]["vehicle_type"]}</p>
             <p><strong>VIN:</strong> {data["meta"]["vin"]}</p>
             <p><strong>تاریخ ارزیابی:</strong> {data["meta"]["eval_date"]}</p>
-            <p><strong>کارکرد:</strong> {data["meta"]["distance"]}</p>
+            <p><strong>مسافت طی شده:</strong> {data["meta"]["distance"]}</p>
         </div>
-
         <h3>جدول مشاهدات:</h3>
         <table>
             <tr>
                 <th style="width:6%;">ردیف</th>
-                <th style="width:30%;">ایرادات فنی</th>
-                <th style="width:30%;">شرایط بروز ایراد</th>
-                <th style="width:12%;">کیلومتر</th>
-                <th style="width:22%;">نظر سرپرست</th>
+                <th style="width:32%;">ایرادات فنی</th>
+                <th style="width:32%;">شرایط بروز ایراد</th>
+                <th style="width:10%;">کیلومتر</th>
+                <th style="width:20%;">نظر سرپرست</th>
             </tr>
     """
-
     for r in data["observations"]:
         html_content += f"""
-        <tr>
-            <td>{r.get("row","")}</td>
-            <td>{r.get("issue","")}</td>
-            <td>{r.get("condition","")}</td>
-            <td>{r.get("km","")}</td>
-            <td>{r.get("supervisor_comment","")}</td>
-        </tr>
+            <tr>
+                <td>{r.get('row', '')}</td>
+                <td>{r.get('issue', '')}</td>
+                <td>{r.get('condition', '')}</td>
+                <td>{r.get('km', '')}</td>
+                <td>{r.get('supervisor_comment', '')}</td>
+            </tr>
         """
-
     html_content += """
         </table>
     </body>
     </html>
     """
 
+    pdf_io = io.BytesIO()
     HTML(string=html_content, base_url=".").write_pdf(pdf_io)
     pdf_io.seek(0)
 
-    pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
-    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+    pdf_name = f"{data['meta']['eval_date']}_{data['meta']['vehicle_type']}_{data['meta']['vin']}_{data['meta']['evaluator']}.pdf"
+    return send_file(pdf_io, download_name=pdf_name, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -340,6 +343,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
