@@ -182,7 +182,7 @@ def download_pdf(model, fname):
     
     left_margin = 0
     right_margin = 15
-    table_width = 595 - left_margin - right_margin  # عرض A4 ~595pt
+    table_width = 595  # عرض A4 ~595pt - left_margin - right_margin
     col_ratios = [0.06, 0.32, 0.32, 0.1, 0.2]     # نسبت ستون‌ها به عرض جدول
 
     html_content = f"""
@@ -190,7 +190,7 @@ def download_pdf(model, fname):
     <head>
     <meta charset="utf-8">
     <style>
-        @page {{ margin-top:25px; margin-right:25px; margin-bottom:25px; margin-left:15px; }}
+        @page {{ margin:25px; }}
         @font-face {{
             font-family: 'Vazirmatn';
             src: url('file://{font_path}') format('truetype');
@@ -352,6 +352,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
