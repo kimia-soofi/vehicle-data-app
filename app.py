@@ -170,7 +170,7 @@ from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
 
-# ------ کمک‌کننده‌ها
+# کمک‌کننده‌ها
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
@@ -178,12 +178,12 @@ def reshape_text(text):
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
-# ------ روت برای دانلود PDF
+# روت دانلود PDF
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"): 
         return redirect(url_for("admin_login"))
-    
+
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
     if not os.path.isfile(fpath):
         flash("فایل پیدا نشد ❌")
@@ -200,14 +200,14 @@ def download_pdf(model, fname):
 
     # استایل‌ها
     styles = {
-        'fa': ParagraphStyle('fa', fontName='Vazir', fontSize=11, alignment=TA_RIGHT, leading=14, wordWrap="RTL"),
+        'fa': ParagraphStyle('fa', fontName='Vazir', fontSize=11, alignment=TA_RIGHT, leading=14),
         'en': ParagraphStyle('en', fontName='Vazir', fontSize=11, alignment=TA_LEFT, leading=14),
         'title': ParagraphStyle('title', fontName='Vazir', fontSize=14, alignment=TA_RIGHT, leading=16),
     }
 
     story = []
 
-    # عنوان
+    # عنوان فرم
     story.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), styles['title']))
     story.append(Spacer(1, 12))
 
@@ -219,19 +219,22 @@ def download_pdf(model, fname):
         else:
             val_para = Paragraph(str(v), styles['en'])
         story.append(Table([[key_para, val_para]], colWidths=[100, 350], style=[
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ALIGN', (0,0), (0,0), 'LEFT'),
             ('ALIGN', (1,0), (1,0), 'RIGHT'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
         ]))
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 4))
 
     story.append(Spacer(1, 12))
     story.append(Paragraph(reshape_text("جدول مشاهدات:"), styles['fa']))
     story.append(Spacer(1, 12))
 
-    # جدول مشاهدات
+    # جدول مشاهدات (از راست به چپ)
     headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
-    table_data = [[Paragraph(reshape_text(h), styles['fa']) for h in headers]]
+    headers_para = [Paragraph(reshape_text(h), styles['fa']) for h in headers]
+    table_data = [headers_para]
 
     for r in data["observations"]:
         row = []
@@ -243,12 +246,16 @@ def download_pdf(model, fname):
                 row.append(Paragraph(cell_text, styles['en']))
         table_data.append(row)
 
-    col_widths = [30, 130, 130, 60, 100]  # به ترتیب از راست
+    col_widths = [30, 130, 130, 60, 100]  # ترتیب از راست به چپ
     tbl = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
     tbl.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.6, colors.black),
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
     ]))
 
     story.append(tbl)
@@ -324,6 +331,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
