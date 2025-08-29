@@ -158,30 +158,13 @@ def admin_reject(model,fname):
 
 
 # ----- دانلود PDF کل فرم
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_RIGHT, TA_LEFT
-from reportlab.lib import colors
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
-from reportlab.lib.pagesizes import A4
-import arabic_reshaper
-from bidi.algorithm import get_display
-import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
+import io, os, json
+from weasyprint import HTML, CSS
 
-# کمک‌کننده‌ها
-def is_farsi(text):
-    return bool(re.search(r'[\u0600-\u06FF]', str(text)))
-
-def reshape_text(text):
-    reshaped_text = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped_text)
-
-# روت دانلود PDF
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
-    if not session.get("admin_logged_in"): 
+    if not session.get("admin_logged_in"):
         return redirect(url_for("admin_login"))
 
     fpath = os.path.join(DATA_FOLDER, model.upper(), fname)
@@ -192,76 +175,65 @@ def download_pdf(model, fname):
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    pdf_io = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    # --- HTML قالب PDF ---
+    html_content = f"""
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        @font-face {{
+            font-family: 'Vazir';
+            src: url('/static/Vazirmatn-Regular.ttf');
+        }}
+        body {{ font-family: 'Vazir', sans-serif; direction: rtl; }}
+        h2 {{ text-align: center; }}
+        table {{ border-collapse: collapse; width: 100%; direction: rtl; }}
+        td, th {{ border: 1px solid black; padding: 5px; vertical-align: top; }}
+        th {{ background-color: #ccc; }}
+    </style>
+    </head>
+    <body>
+    <h2>فرم ارزیابی خودرو</h2>
+    <p><strong>Evaluator:</strong> {data["meta"]["evaluator"]}</p>
+    <p><strong>Vehicle Type:</strong> {data["meta"]["vehicle_type"]}</p>
+    <p><strong>VIN:</strong> {data["meta"]["vin"]}</p>
+    <p><strong>Evaluation Date:</strong> {data["meta"]["eval_date"]}</p>
+    <p><strong>Distance:</strong> {data["meta"]["distance"]}</p>
 
-    # ثبت فونت
-    pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
+    <h3>جدول مشاهدات:</h3>
+    <table>
+        <tr>
+            <th>ردیف</th>
+            <th>ایرادات فنی</th>
+            <th>شرایط بروز ایراد</th>
+            <th>کیلومتر</th>
+            <th>نظر سرپرست</th>
+        </tr>
+    """
 
-    # استایل‌ها
-    styles = {
-        'fa': ParagraphStyle('fa', fontName='Vazir', fontSize=11, alignment=TA_RIGHT, leading=14),
-        'en': ParagraphStyle('en', fontName='Vazir', fontSize=11, alignment=TA_LEFT, leading=14),
-        'title': ParagraphStyle('title', fontName='Vazir', fontSize=14, alignment=TA_RIGHT, leading=16),
-    }
-
-    story = []
-
-    # عنوان فرم
-    story.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), styles['title']))
-    story.append(Spacer(1, 12))
-
-    # اطلاعات متا
-    for k, v in data["meta"].items():
-        key_para = Paragraph(f"{k}:", styles['en'])
-        if is_farsi(v):
-            val_para = Paragraph(reshape_text(v), styles['fa'])
-        else:
-            val_para = Paragraph(str(v), styles['en'])
-        story.append(Table([[key_para, val_para]], colWidths=[100, 350], style=[
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('ALIGN', (0,0), (0,0), 'LEFT'),
-            ('ALIGN', (1,0), (1,0), 'RIGHT'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-            ('TOPPADDING', (0,0), (-1,-1), 2),
-        ]))
-        story.append(Spacer(1, 4))
-
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(reshape_text("جدول مشاهدات:"), styles['fa']))
-    story.append(Spacer(1, 12))
-
-    # جدول مشاهدات (از راست به چپ)
-    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
-    headers_para = [Paragraph(reshape_text(h), styles['fa']) for h in headers]
-    table_data = [headers_para]
-
+    # اضافه کردن ردیف‌ها
     for r in data["observations"]:
-        row = []
-        for key in ['row', 'issue', 'condition', 'km', 'supervisor_comment']:
-            cell_text = str(r.get(key, ""))
-            if is_farsi(cell_text):
-                row.append(Paragraph(reshape_text(cell_text), styles['fa']))
-            else:
-                row.append(Paragraph(cell_text, styles['en']))
-        table_data.append(row)
+        html_content += f"""
+        <tr>
+            <td>{r.get("row","")}</td>
+            <td>{r.get("issue","")}</td>
+            <td>{r.get("condition","")}</td>
+            <td>{r.get("km","")}</td>
+            <td>{r.get("supervisor_comment","")}</td>
+        </tr>
+        """
 
-    col_widths = [30, 130, 130, 60, 100]  # ترتیب از راست به چپ
-    tbl = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
-    tbl.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 0.6, colors.black),
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-    ]))
+    html_content += """
+    </table>
+    </body>
+    </html>
+    """
 
-    story.append(tbl)
-
-    # ساخت PDF
-    doc.build(story)
+    # --- تولید PDF ---
+    pdf_io = io.BytesIO()
+    HTML(string=html_content, base_url=".").write_pdf(pdf_io, stylesheets=[
+        CSS(string='@font-face { font-family: "Vazir"; src: url("/static/Vazirmatn-Regular.ttf"); }')
+    ])
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
@@ -331,6 +303,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
