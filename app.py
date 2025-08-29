@@ -26,7 +26,7 @@ def save_car_models(models):
         json.dump(models, f, ensure_ascii=False, indent=2)
 
 def persian_date_now():
-    return jdatetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    return jdatetime.datetime.now().strftime("%Y/%m/%d")
 
 # ----- صفحه فرود
 @app.route("/")
@@ -164,6 +164,10 @@ from weasyprint import HTML, CSS
 
 
 
+from flask import send_file, flash, redirect, url_for, session
+import io, os, json
+from weasyprint import HTML
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -187,7 +191,7 @@ def download_pdf(model, fname):
     <style>
         @page {{
             size: A4;
-            margin: 80px 25px 40px 25px; /* بالای صفحه بزرگتر برای هدر */
+            margin: 90px 40px 50px 40px; /* بالا، راست، پایین، چپ */
             
             @top-center {{
                 content: element(header);
@@ -203,7 +207,7 @@ def download_pdf(model, fname):
             font-family: 'Vazirmatn', sans-serif;
             direction: rtl;
             color: #333;
-            line-height: 1.5;
+            line-height: 1.6;
             font-size: 13px;
         }}
 
@@ -216,13 +220,14 @@ def download_pdf(model, fname):
             padding-bottom: 5px;
             margin-bottom: 15px;
         }}
-        .header img {{
-            height: 40px;
-        }}
         .header h2 {{
             color: #005baa;
             font-size: 18px;
             margin: 0;
+        }}
+        .header img {{
+            height: 45px;
+            margin-left: 10px;
         }}
 
         .meta {{
@@ -240,6 +245,7 @@ def download_pdf(model, fname):
             width: 100%;
             table-layout: fixed;
             word-wrap: break-word;
+            margin-top: 10px;
         }}
         th, td {{
             border: 1px solid #bbb;
@@ -257,10 +263,10 @@ def download_pdf(model, fname):
         }}
         /* عرض ستون‌ها */
         th:nth-child(1), td:nth-child(1) {{ width: 7%; }}
-        th:nth-child(2), td:nth-child(2) {{ width: 27%; }}
-        th:nth-child(3), td:nth-child(3) {{ width: 27%; }}
+        th:nth-child(2), td:nth-child(2) {{ width: 26%; }}
+        th:nth-child(3), td:nth-child(3) {{ width: 26%; }}
         th:nth-child(4), td:nth-child(4) {{ width: 12%; }}
-        th:nth-child(5), td:nth-child(5) {{ width: 27%; }}
+        th:nth-child(5), td:nth-child(5) {{ width: 26%; }}
     </style>
     </head>
     <body>
@@ -312,6 +318,7 @@ def download_pdf(model, fname):
 
     pdf_name = f"{data['meta']['eval_date']}_{data['meta']['vehicle_type']}_{data['meta']['vin']}_{data['meta']['evaluator']}.pdf"
     return send_file(pdf_io, download_name=pdf_name, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -379,6 +386,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
