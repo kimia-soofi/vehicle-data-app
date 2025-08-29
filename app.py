@@ -169,12 +169,15 @@ from flask import send_file, flash, redirect, url_for, session
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
+from reportlab.lib.colors import black
 
 
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
 def reshape_text(text):
+    if text is None:
+        return ""
     reshaped_text = arabic_reshaper.reshape(str(text))
     return get_display(reshaped_text)
 
@@ -240,13 +243,16 @@ def download_pdf(model, fname):
         x_cursor -= w
 
     # هدر جدول
+    header_y = y - 20  # موقعیت ثابت برای هدر
     for (h, w), x in zip(col_specs, x_positions):
-        pdf.rect(x, y-20, w, 20)
+        pdf.rect(x, header_y, w, 20)
         if is_farsi(h):
-            pdf.drawRightString(x+w-2, y-15, reshape_text(h))
+            pdf.drawRightString(x + w - 5, header_y + 5, reshape_text(h))
         else:
-            pdf.drawString(x+2, y-15, h)
-    y -= 20
+            pdf.drawString(x + 5, header_y + 5, h)
+    
+    # موقعیت شروع ردیف‌ها (زیر هدر)
+    y = header_y - 5
 
     # --- استایل‌ها برای متن فارسی و انگلیسی
     farsi_style = ParagraphStyle(
@@ -254,53 +260,80 @@ def download_pdf(model, fname):
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_RIGHT
+        alignment=TA_RIGHT,
+        textColor=black
     )
     eng_style = ParagraphStyle(
         'eng',
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_LEFT
+        alignment=TA_LEFT,
+        textColor=black
     )
 
-    # ردیف‌ها - تغییر اصلی اینجاست: لیست observations را معکوس می‌کنیم
-    default_row_height = 40
-    # به جای reversed از ایندکس معکوس استفاده کنید
-    for i in range(len(data["observations"])-1, -1, -1):
-        r = data["observations"][i]
-        row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
+    # ردیف‌ها به ترتیب صحیح (از اولین تا آخرین)
+    for i, r in enumerate(data["observations"]):
+        row_data = [
+            str(r.get("row", i + 1)),
+            str(r.get("issue", "")),
+            str(r.get("condition", "")),
+            str(r.get("km", "")),
+            str(r.get("supervisor_comment", ""))
+        ]
 
-    # بقیه کد بدون تغییر
-
-        max_row_height = default_row_height
+        # محاسبه ارتفاع مورد نیاز برای این ردیف
+        max_row_height = 40  # ارتفاع پیش‌فرض
         cell_paragraphs = []
+        cell_heights = []
 
-        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
-        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
+        # محاسبه ارتفاع هر سلول
+        for cell, (h, w) in zip(row_data, col_specs):
             cell_str = str(cell) if cell is not None else ""
             style = farsi_style if is_farsi(cell_str) else eng_style
             content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
             para = Paragraph(content, style)
-            cell_paragraphs.append((para, w, x))
+            
+            # محاسبه ارتفاع مورد نیاز برای این پاراگراف
+            aw, ah = para.wrap(w - 10, 1000)  # فضای کافی برای محاسبه ارتفاع
+            cell_height = ah + 8  # اضافه کردن margin
+            cell_heights.append(cell_height)
+            cell_paragraphs.append((para, w, cell_height))
 
-            _, ph = para.wrap(w-4, default_row_height)
-            if ph > max_row_height:
-                max_row_height = ph + 8
+        # پیدا کردن بیشترین ارتفاع در این ردیف
+        max_row_height = max(cell_heights) if cell_heights else 40
 
-        # رسم سلول‌ها
-        for para, w, x in cell_paragraphs:
-            pdf.rect(x, y-max_row_height, w, max_row_height)  # قاب
-            para.wrapOn(pdf, w-4, max_row_height-4)
-            para.drawOn(pdf, x+2, y-max_row_height+2)
-
-        # بعدی
-        y -= max_row_height
-
-        if y < 80:  # صفحه جدید
+        # بررسی اگر فضای کافی در صفحه وجود ندارد
+        if y - max_row_height < 50:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
+            # رسم هدر جدول در صفحه جدید
+            header_y = y - 20
+            for (h, w), x in zip(col_specs, x_positions):
+                pdf.rect(x, header_y, w, 20)
+                if is_farsi(h):
+                    pdf.drawRightString(x + w - 5, header_y + 5, reshape_text(h))
+                else:
+                    pdf.drawString(x + 5, header_y + 5, h)
+            y = header_y - 5
+
+        # رسم سلول‌های ردیف
+        current_y = y - max_row_height
+        
+        for (para, w, cell_height), x in zip(cell_paragraphs, x_positions):
+            # رسم مستطیل سلول
+            pdf.rect(x, current_y, w, max_row_height)
+            
+            # محاسبه موقعیت متن (وسط عمودی)
+            text_y = current_y + (max_row_height - cell_height) / 2 + 2
+            
+            # رسم پاراگراف
+            para.wrapOn(pdf, w - 10, max_row_height)
+            para.drawOn(pdf, x + 5, text_y)
+
+        # کاهش Y برای ردیف بعدی
+        y = current_y - 5
 
     # پایان
     pdf.save()
@@ -370,6 +403,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
