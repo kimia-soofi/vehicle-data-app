@@ -5,7 +5,8 @@ jdatetime
 reportlab
 fpdf
 python-bidi
-
+weasyprint
 arabic-reshaper
+
 
 
