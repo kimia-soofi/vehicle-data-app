@@ -162,12 +162,6 @@ from flask import send_file, flash, redirect, url_for, session
 import io, os, json
 from weasyprint import HTML, CSS
 
-
-
-from flask import send_file, flash, redirect, url_for, session
-import io, os, json
-from weasyprint import HTML
-
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -386,6 +380,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
