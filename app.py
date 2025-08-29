@@ -161,6 +161,10 @@ from flask import send_file, flash, redirect, url_for, session
 import io, os, json
 from weasyprint import HTML, CSS
 
+from flask import send_file, flash, redirect, url_for, session
+import io, os, json
+from weasyprint import HTML
+
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -184,8 +188,7 @@ def download_pdf(model, fname):
     <style>
         @page {{
             size: A4;
-            margin: 90px 40px 50px 40px; /* بالا، راست، پایین، چپ */
-            
+            margin: 90px 40px 50px 40px;
             @top-center {{
                 content: element(header);
             }}
@@ -204,23 +207,25 @@ def download_pdf(model, fname):
             font-size: 13px;
         }}
 
-        /* هدر ثابت */
+        /* هدر */
         .header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            width: 100%;
             border-bottom: 2px solid #005baa;
             padding-bottom: 5px;
             margin-bottom: 15px;
+            position: relative;
         }}
         .header h2 {{
             color: #005baa;
             font-size: 18px;
             margin: 0;
+            text-align: center;
         }}
         .header img {{
+            position: absolute;
+            top: 0;
+            right: 0;
             height: 45px;
-            margin-left: 10px;
         }}
 
         .meta {{
@@ -235,10 +240,10 @@ def download_pdf(model, fname):
 
         table {{
             border-collapse: collapse;
-            width: 100%;
+            width: calc(100% - 60px); /* فاصله از چپ و راست */
+            margin: 0 auto;           /* وسط چین شدن جدول */
             table-layout: fixed;
             word-wrap: break-word;
-            margin-top: 10px;
         }}
         th, td {{
             border: 1px solid #bbb;
@@ -254,7 +259,6 @@ def download_pdf(model, fname):
         td {{
             font-size: 12px;
         }}
-        /* عرض ستون‌ها */
         th:nth-child(1), td:nth-child(1) {{ width: 7%; }}
         th:nth-child(2), td:nth-child(2) {{ width: 26%; }}
         th:nth-child(3), td:nth-child(3) {{ width: 26%; }}
@@ -311,6 +315,7 @@ def download_pdf(model, fname):
 
     pdf_name = f"{data['meta']['eval_date']}_{data['meta']['vehicle_type']}_{data['meta']['vin']}_{data['meta']['evaluator']}.pdf"
     return send_file(pdf_io, download_name=pdf_name, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -379,6 +384,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
