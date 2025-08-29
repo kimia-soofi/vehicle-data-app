@@ -267,13 +267,15 @@ def download_pdf(model, fname):
         textColor=black
     )
 
-    # ردیف‌ها - راه حل اصلاح شده
+    # ردیف‌ها - راه حل کاملاً اصلاح شده
     default_row_height = 40
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
         # محاسبه ارتفاع مورد نیاز برای هر سلول
         cell_heights = []
+        cell_paragraphs = []
+        
         for cell, (h, w) in zip(row_data, col_specs):
             cell_str = str(cell) if cell is not None else ""
             style = farsi_style if is_farsi(cell_str) else eng_style
@@ -281,8 +283,10 @@ def download_pdf(model, fname):
             para = Paragraph(content, style)
             
             # محاسبه ارتفاع مورد نیاز
-            _, ph = para.wrap(w-4, 1000)  # ارتفاع زیاد برای محاسبه واقعی
-            cell_heights.append(ph + 8)
+            para.wrap(w-4, 1000)  # ارتفاع زیاد برای محاسبه واقعی
+            cell_height = para.height + 8
+            cell_heights.append(cell_height)
+            cell_paragraphs.append(para)
         
         # ارتفاع ماکسیموم برای این ردیف
         max_row_height = max(cell_heights) if cell_heights else default_row_height
@@ -301,24 +305,17 @@ def download_pdf(model, fname):
                     pdf.drawString(x+2, y-15, h)
             y -= 20
 
-        # رسم سلول‌ها و محتوای آنها
-        for i, (cell, (h, w), x) in enumerate(zip(row_data, col_specs, x_positions)):
-            cell_str = str(cell) if cell is not None else ""
-            style = farsi_style if is_farsi(cell_str) else eng_style
-            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
-            
+        # رسم سلول‌ها
+        for i, ((h, w), x, para, cell_height) in enumerate(zip(col_specs, x_positions, cell_paragraphs, cell_heights)):
             # رسم قاب سلول
             pdf.rect(x, y - max_row_height, w, max_row_height)
             
-            # ایجاد و رسم پاراگراف
-            para = Paragraph(content, style)
-            para.wrap(w-4, max_row_height-4)
-            
-            # موقعیت Y برای محتوا - از بالا به پایین
-            content_height = para.height
+            # محاسبه موقعیت Y برای محتوا (از بالا به پایین)
+            # محتوای هر سلول در بالای سلول خودش قرار می‌گیرد
             content_y = y - 4  # شروع از بالا با کمی فاصله
             
-            para.drawOn(pdf, x + 2, content_y - content_height)
+            # رسم پاراگراف
+            para.drawOn(pdf, x + 2, content_y - para.height)
 
         # کاهش موقعیت Y برای ردیف بعدی
         y -= max_row_height
@@ -329,7 +326,6 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
-
 
 
 # ----- مدیریت مدل‌ها
@@ -392,6 +388,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
