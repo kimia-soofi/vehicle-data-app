@@ -266,8 +266,12 @@ def download_pdf(model, fname):
 
     # ردیف‌ها - تغییر اصلی اینجاست: لیست observations را معکوس می‌کنیم
     default_row_height = 40
-    for r in reversed(data["observations"]):  # استفاده از reversed برای معکوس کردن ترتیب
+    # به جای reversed از ایندکس معکوس استفاده کنید
+    for i in range(len(data["observations"])-1, -1, -1):
+        r = data["observations"][i]
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
+
+    # بقیه کد بدون تغییر
 
         max_row_height = default_row_height
         cell_paragraphs = []
@@ -366,6 +370,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
