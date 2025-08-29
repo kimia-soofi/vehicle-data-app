@@ -4,7 +4,7 @@ from datetime import datetime
 import jdatetime
 from openpyxl import Workbook
 from config import ADMIN_USERNAME, ADMIN_PASSWORD, STAFF_USERNAME, STAFF_PASSWORD, CAR_MODELS_FILE, INITIAL_CAR_MODELS
-from fpdf import FPDF
+
 # ----- تنظیمات پایه
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change_this_secret_key")
@@ -158,29 +158,27 @@ def admin_reject(model,fname):
 
 
 # ----- دانلود PDF کل فرم
-# ----- دانلود PDF کل فرم -----
+# ====== بالای فایل app.py این importها را اضافه/بروز کنید
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
 import arabic_reshaper
-from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
 
-# تشخیص فارسی
-def is_farsi(text):
+# کمکی‌ها
+def is_farsi(text) -> bool:
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
-# بازآرایی متن فارسی برای نمایش درست
-def reshape_text(text):
-    text = str(text)
-    reshaped_text = arabic_reshaper.reshape(text)
-    return get_display(reshaped_text)
+def fa_shape(text: str) -> str:
+    # فقط شکل‌دهی عربی/فارسی؛ bidi را به Paragraph می‌سپاریم (wordWrap='RTL')
+    return arabic_reshaper.reshape(str(text))
 
+# ====== دانلود PDF با چیدمان راست به چپ و سطرشکنی درست
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -194,97 +192,127 @@ def download_pdf(model, fname):
     with open(fpath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    pdf_io = io.BytesIO()
+    buf = io.BytesIO()
 
-    # تعریف PDF
-    doc = SimpleDocTemplate(pdf_io, pagesize=A4,
-                            rightMargin=40, leftMargin=40,
-                            topMargin=40, bottomMargin=30)
+    # سند
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        rightMargin=24, leftMargin=24, topMargin=36, bottomMargin=36
+    )
+    W, H = A4
 
-    # فونت فارسی
-    pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
+    # فونت فارسی (Vazirmatn-Regular.ttf را در static گذاشته‌اید)
+    pdfmetrics.registerFont(TTFont("Vazir", os.path.join("static", "Vazirmatn-Regular.ttf")))
 
     # استایل‌ها
-    styles = getSampleStyleSheet()
-    farsi_style = ParagraphStyle(
-        'farsi',
-        parent=styles['Normal'],
-        fontName='Vazir',
-        fontSize=11,
-        alignment=TA_RIGHT
+    style_title = ParagraphStyle(
+        name="title", fontName="Vazir", fontSize=15, leading=20, alignment=TA_CENTER
     )
-    eng_style = ParagraphStyle(
-        'eng',
-        parent=styles['Normal'],
-        fontName='Vazir',
-        fontSize=11,
+    style_fa = ParagraphStyle(
+        name="fa", fontName="Vazir", fontSize=11, leading=16,
+        alignment=TA_RIGHT, wordWrap='RTL'   # ← سطرشکنی راست‌به‌چپ
+    )
+    style_en = ParagraphStyle(
+        name="en", fontName="Vazir", fontSize=11, leading=16,
         alignment=TA_LEFT
     )
-    title_style = ParagraphStyle(
-        'title',
-        parent=styles['Normal'],
-        fontName='Vazir',
-        fontSize=14,
-        alignment=TA_CENTER
+    style_key = ParagraphStyle(
+        name="key", fontName="Vazir", fontSize=11, leading=16,
+        alignment=TA_LEFT  # لیبل‌های متا همیشه چپ‌چین بمانند (EVALUATOR و…)
     )
 
     elements = []
 
     # عنوان
-    elements.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), title_style))
+    elements.append(Paragraph(fa_shape("فرم ارزیابی خودرو"), style_title))
     elements.append(Spacer(1, 12))
 
-    # اطلاعات متا
-    for k, v in data["meta"].items():
-        val_str = str(v)
-        if is_farsi(val_str):
-            elements.append(Paragraph(f"{reshape_text(k)} : {reshape_text(val_str)}", farsi_style))
-        else:
-            elements.append(Paragraph(f"{k}: {val_str}", eng_style))
-    elements.append(Spacer(1, 12))
-
-    # تیتر جدول
-    elements.append(Paragraph(reshape_text("جدول مشاهدات:"), farsi_style))
-    elements.append(Spacer(1, 6))
-
-    # جدول از راست به چپ
-    col_specs = [
-        (reshape_text("ردیف"), 30),
-        (reshape_text("ایرادات فنی"), 120),
-        (reshape_text("شرایط بروز ایراد"), 120),
-        (reshape_text("کیلومتر"), 60),
-        (reshape_text("نظر سرپرست"), 80),
+    # --- جدول متادیتا (۲ ستونه: لیبل، مقدار)؛ جدول را راست‌چین می‌گذاریم
+    meta = data.get("meta", {})
+    # برای نظم، ترتیبِ نمایش را مشخص کنیم (اگر نبود، همان ترتیب دیکشنری)
+    ordered_keys = [
+        "vehicle_type", "vin", "eval_date", "start_time", "end_time",
+        "start_km", "end_km", "distance", "evaluator", "submitted_at"
     ]
+    rows = []
+    style_cmds = [
+        ('GRID', (0,0), (-1,-1), 0.25, colors.lightgrey),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke)
+    ]
+    # هدر فارسی/انگلیسی برای ستون لیبل و مقدار
+    rows.append([
+        Paragraph(fa_shape("فیلد"), style_fa),
+        Paragraph(fa_shape("مقدار"), style_fa)
+    ])
 
-    headers = [Paragraph(h, farsi_style) for h, _ in col_specs]
+    r_index = 1
+    for k in ordered_keys:
+        if k not in meta: 
+            continue
+        v = meta[k]
+        # لیبل را همان کلید خام نمایش می‌دهیم (چپ‌چین)
+        key_cell = Paragraph(f"{k}:", style_key)
+        # مقدار: اگر فارسی بود راست‌چین و شکل‌دهی، وگرنه چپ‌چین معمولی
+        val_cell = Paragraph(fa_shape(v) if is_farsi(v) else str(v),
+                             style_fa if is_farsi(v) else style_en)
+        rows.append([key_cell, val_cell])
+        # تراز هر سطرِ مقدار را به‌صورت سلولی دقیق تنظیم کنیم
+        style_cmds.append(('ALIGN', (1, r_index), (1, r_index), 'RIGHT' if is_farsi(v) else 'LEFT'))
+        r_index += 1
 
-    table_data = [headers]
+    meta_tbl = Table(rows, colWidths=[110, doc.width - 110], hAlign='RIGHT')
+    meta_tbl.setStyle(TableStyle(style_cmds))
+    elements.append(meta_tbl)
+    elements.append(Spacer(1, 16))
 
-    for r in data["observations"]:
-        row_data = []
-        for idx, (h, w) in enumerate(col_specs):
-            cell = str([r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]][idx])
-            if is_farsi(cell):
-                row_data.append(Paragraph(reshape_text(cell), farsi_style))
+    # --- جدول مشاهدات (ستون‌ها از راست به چپ، خودِ جدول راست‌چین)
+    # ترتیب از راست به چپ مثل فرم: ردیف | ایرادات | شرایط | کیلومتر | نظر سرپرست
+    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
+    colWidths = [40, 170, 170, 60, 90]   # مجموع <= doc.width باشد
+    data_rows = []
+
+    # ردیف هدر
+    data_rows.append([Paragraph(fa_shape(h), style_fa) for h in headers])
+
+    # بدنه جدول
+    for r in data.get("observations", []):
+        cells = [
+            r.get("row", ""),
+            r.get("issue", ""),
+            r.get("condition", ""),
+            r.get("km", ""),
+            r.get("supervisor_comment", "")
+        ]
+        row_cells = []
+        for c in cells:
+            txt = "" if c is None else str(c)
+            if is_farsi(txt):
+                row_cells.append(Paragraph(fa_shape(txt), style_fa))
             else:
-                row_data.append(Paragraph(cell, eng_style))
-        table_data.append(row_data)
+                row_cells.append(Paragraph(txt, style_en))
+        data_rows.append(row_cells)
 
-    table = Table(table_data, colWidths=[w for _, w in col_specs])
-    table.setStyle(TableStyle([
-        ("GRID", (0,0), (-1,-1), 0.5, colors.black),
-        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-        ("VALIGN", (0,0), (-1,-1), "TOP"),
+    obs_tbl = Table(data_rows, colWidths=colWidths, hAlign='RIGHT', repeatRows=1)
+    obs_tbl.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        # ترازبندی ستونی:
+        ('ALIGN', (0,1), (0,-1), 'CENTER'),  # ستون "ردیف"
+        ('ALIGN', (3,1), (3,-1), 'CENTER'),  # ستون "کیلومتر"
+        # ستون‌های متنی فارسی پیش‌فرض راست هستند چون style_fa راست‌چین است
     ]))
-
-    elements.append(table)
+    elements.append(obs_tbl)
 
     # ساخت PDF
     doc.build(elements)
-    pdf_io.seek(0)
+    buf.seek(0)
 
-    pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
-    return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+    # نام فایل
+    meta = data.get("meta", {})
+    pdf_filename = f'{meta.get("eval_date","")}_{meta.get("vehicle_type","")}_{meta.get("vin","")}_{meta.get("evaluator","")}.pdf'
+    return send_file(buf, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
 
 
 
@@ -349,6 +377,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
