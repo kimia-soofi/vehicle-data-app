@@ -169,6 +169,7 @@ from flask import send_file, flash, redirect, url_for, session
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
+from reportlab.lib.colors import black
 
 
 def is_farsi(text):
@@ -254,51 +255,73 @@ def download_pdf(model, fname):
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_RIGHT
+        alignment=TA_RIGHT,
+        textColor=black
     )
     eng_style = ParagraphStyle(
         'eng',
         fontName='Vazir',
         fontSize=10,
         leading=12,
-        alignment=TA_LEFT
+        alignment=TA_LEFT,
+        textColor=black
     )
 
-    # ردیف‌ها - راه حل دوم ساده‌تر
+    # ردیف‌ها - راه حل اصلاح شده
     default_row_height = 40
     for r in data["observations"]:
         row_data = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
 
-        max_row_height = default_row_height
-        cell_paragraphs = []
-
-        # آماده‌سازی پاراگراف‌ها و محاسبه ارتفاع
-        for cell, (h, w), x in zip(row_data, col_specs, x_positions):
+        # محاسبه ارتفاع مورد نیاز برای هر سلول
+        cell_heights = []
+        for cell, (h, w) in zip(row_data, col_specs):
             cell_str = str(cell) if cell is not None else ""
             style = farsi_style if is_farsi(cell_str) else eng_style
             content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
             para = Paragraph(content, style)
-            cell_paragraphs.append((para, w, x))
-
-            # محاسبه ارتفاع مورد نیاز برای این سلول
-            _, ph = para.wrap(w-4, default_row_height)
-            if ph > max_row_height:
-                max_row_height = ph + 8
-
-        # رسم سلول‌ها
-        for (para, w, x) in cell_paragraphs:
-            pdf.rect(x, y - max_row_height, w, max_row_height)
             
-            # رسم محتوا از بالا به پایین
-            para.wrapOn(pdf, w-4, max_row_height-4)
-            para.drawOn(pdf, x+2, y - max_row_height + 2)
+            # محاسبه ارتفاع مورد نیاز
+            _, ph = para.wrap(w-4, 1000)  # ارتفاع زیاد برای محاسبه واقعی
+            cell_heights.append(ph + 8)
+        
+        # ارتفاع ماکسیموم برای این ردیف
+        max_row_height = max(cell_heights) if cell_heights else default_row_height
 
-        y -= max_row_height
-
-        if y < 80:  # صفحه جدید در صورت نیاز
+        # بررسی اگر فضای کافی وجود ندارد
+        if y - max_row_height < 50:
             pdf.showPage()
             pdf.setFont("Vazir", 12)
             y = height - 50
+            # رسم هدر جدول در صفحه جدید
+            for (h, w), x in zip(col_specs, x_positions):
+                pdf.rect(x, y-20, w, 20)
+                if is_farsi(h):
+                    pdf.drawRightString(x+w-2, y-15, reshape_text(h))
+                else:
+                    pdf.drawString(x+2, y-15, h)
+            y -= 20
+
+        # رسم سلول‌ها و محتوای آنها
+        for i, (cell, (h, w), x) in enumerate(zip(row_data, col_specs, x_positions)):
+            cell_str = str(cell) if cell is not None else ""
+            style = farsi_style if is_farsi(cell_str) else eng_style
+            content = reshape_text(cell_str) if is_farsi(cell_str) else cell_str
+            
+            # رسم قاب سلول
+            pdf.rect(x, y - max_row_height, w, max_row_height)
+            
+            # ایجاد و رسم پاراگراف
+            para = Paragraph(content, style)
+            para.wrap(w-4, max_row_height-4)
+            
+            # موقعیت Y برای محتوا - از بالا به پایین
+            content_height = para.height
+            content_y = y - 4  # شروع از بالا با کمی فاصله
+            
+            para.drawOn(pdf, x + 2, content_y - content_height)
+
+        # کاهش موقعیت Y برای ردیف بعدی
+        y -= max_row_height
 
     # پایان
     pdf.save()
@@ -306,6 +329,9 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
+
+
 # ----- مدیریت مدل‌ها
 @app.route("/admin/car_models", methods=["GET","POST"])
 def admin_car_models():
@@ -366,6 +392,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
