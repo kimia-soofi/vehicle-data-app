@@ -181,8 +181,8 @@ def download_pdf(model, fname):
     font_path = os.path.abspath(os.path.join("static", "Vazirmatn-Regular.ttf"))
     
     left_margin = 0
-    right_margin = 15
-    table_width = 595  # عرض A4 ~595pt - left_margin - right_margin
+    right_margin = 0
+    table_width = 595     # عرض A4 ~595pt - left_margin - right_margin
     col_ratios = [0.06, 0.32, 0.32, 0.1, 0.2]     # نسبت ستون‌ها به عرض جدول
 
     html_content = f"""
@@ -352,6 +352,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
