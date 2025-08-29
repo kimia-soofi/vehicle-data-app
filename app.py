@@ -158,28 +158,27 @@ def admin_reject(model,fname):
 
 
 # ----- دانلود PDF کل فرم
-from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT
+from reportlab.lib import colors
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle
-from bidi.algorithm import get_display
+from reportlab.lib.pagesizes import A4
 import arabic_reshaper
+from bidi.algorithm import get_display
 import io, os, json, re
 from flask import send_file, flash, redirect, url_for, session
 
-
+# ------ کمک‌کننده‌ها
 def is_farsi(text):
     return bool(re.search(r'[\u0600-\u06FF]', str(text)))
 
+def reshape_text(text):
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    return get_display(reshaped_text)
 
-def fa_shape(text: str) -> str:
-    """اصلاح متن فارسی برای نمایش درست در PDF"""
-    reshaped = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped)
-
-
+# ------ روت برای دانلود PDF
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"): 
@@ -194,93 +193,68 @@ def download_pdf(model, fname):
         data = json.load(f)
 
     pdf_io = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_io, pagesize=A4,
-                            rightMargin=30, leftMargin=30,
-                            topMargin=30, bottomMargin=30)
+    doc = SimpleDocTemplate(pdf_io, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
 
-    # فونت فارسی
+    # ثبت فونت
     pdfmetrics.registerFont(TTFont('Vazir', os.path.join("static", "Vazirmatn-Regular.ttf")))
 
     # استایل‌ها
-    style_fa = ParagraphStyle(
-        name='Farsi',
-        fontName='Vazir',
-        fontSize=12,
-        alignment=2,  # راست‌چین
-    )
-    style_en = ParagraphStyle(
-        name='English',
-        fontName='Vazir',
-        fontSize=12,
-        alignment=0,  # چپ‌چین
-    )
+    styles = {
+        'fa': ParagraphStyle('fa', fontName='Vazir', fontSize=11, alignment=TA_RIGHT, leading=14, wordWrap="RTL"),
+        'en': ParagraphStyle('en', fontName='Vazir', fontSize=11, alignment=TA_LEFT, leading=14),
+        'title': ParagraphStyle('title', fontName='Vazir', fontSize=14, alignment=TA_RIGHT, leading=16),
+    }
 
-    elements = []
+    story = []
 
     # عنوان
-    elements.append(Paragraph(fa_shape("فرم ارزیابی خودرو"), style_fa))
-    elements.append(Spacer(1, 12))
+    story.append(Paragraph(reshape_text("فرم ارزیابی خودرو"), styles['title']))
+    story.append(Spacer(1, 12))
 
     # اطلاعات متا
     for k, v in data["meta"].items():
-        val_str = str(v)
-        if is_farsi(val_str):
-            p = Paragraph(fa_shape(f"{k}: {val_str}"), style_fa)
+        key_para = Paragraph(f"{k}:", styles['en'])
+        if is_farsi(v):
+            val_para = Paragraph(reshape_text(v), styles['fa'])
         else:
-            p = Paragraph(f"{k}: {val_str}", style_en)
-        elements.append(p)
-    elements.append(Spacer(1, 20))
+            val_para = Paragraph(str(v), styles['en'])
+        story.append(Table([[key_para, val_para]], colWidths=[100, 350], style=[
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (0,0), 'LEFT'),
+            ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ]))
+        story.append(Spacer(1, 6))
+
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(reshape_text("جدول مشاهدات:"), styles['fa']))
+    story.append(Spacer(1, 12))
 
     # جدول مشاهدات
-    elements.append(Paragraph(fa_shape("جدول مشاهدات:"), style_fa))
-    elements.append(Spacer(1, 12))
+    headers = ["ردیف", "ایرادات فنی", "شرایط بروز ایراد", "کیلومتر", "نظر سرپرست"]
+    table_data = [[Paragraph(reshape_text(h), styles['fa']) for h in headers]]
 
-    # تعریف ستون‌ها (از راست به چپ!)
-    col_specs = [
-        ("ردیف", 40),
-        ("ایرادات فنی", 120),
-        ("شرایط بروز ایراد", 120),
-        ("کیلومتر", 60),
-        ("نظر سرپرست", 100),
-    ]
-
-    # هدر جدول (راست به چپ)
-    header = []
-    for h, _ in col_specs:
-        header.append(Paragraph(fa_shape(h), style_fa))
-
-    # داده‌ها
-    rows = []
     for r in data["observations"]:
-        row_data = []
-        # ترتیب همان col_specs از راست به چپ
-        values = [r["row"], r["issue"], r["condition"], r["km"], r["supervisor_comment"]]
-        for val in values:
-            val_str = str(val) if val is not None else ""
-            if is_farsi(val_str):
-                row_data.append(Paragraph(fa_shape(val_str), style_fa))
+        row = []
+        for key in ['row', 'issue', 'condition', 'km', 'supervisor_comment']:
+            cell_text = str(r.get(key, ""))
+            if is_farsi(cell_text):
+                row.append(Paragraph(reshape_text(cell_text), styles['fa']))
             else:
-                row_data.append(Paragraph(val_str, style_en))
-        rows.append(row_data)
+                row.append(Paragraph(cell_text, styles['en']))
+        table_data.append(row)
 
-    table_data = [header] + rows
-
-    table = Table(table_data, colWidths=[w for _, w in col_specs])
-
-    # استایل جدول
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.black),
+    col_widths = [30, 130, 130, 60, 100]  # به ترتیب از راست
+    tbl = Table(table_data, colWidths=col_widths, hAlign='RIGHT')
+    tbl.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.6, colors.black),
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ]))
 
-    elements.append(table)
+    story.append(tbl)
 
     # ساخت PDF
-    doc.build(elements)
+    doc.build(story)
     pdf_io.seek(0)
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
@@ -349,6 +323,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
