@@ -177,24 +177,27 @@ def download_pdf(model, fname):
 
     pdf_io = io.BytesIO()
 
+    # مسیر فونت در پروژه
+    font_path = os.path.join("static", "Vazirmatn-Regular.ttf")
+
     html_content = f"""
     <html>
     <head>
     <meta charset="utf-8">
     <style>
         @font-face {{
-            font-family: 'Vazir';
-            src: url('/static/Vazirmatn-Regular.ttf');
+            font-family: 'Vazirmatn';
+            src: url('file://{os.path.abspath(font_path)}') format('truetype');
         }}
         body {{
-            font-family: 'Vazir', sans-serif;
+            font-family: 'Vazirmatn', sans-serif;
             direction: rtl;
-            font-size: 14px;
-            margin: 20px;
+            font-size: 13px;
+            margin: 25px;
         }}
         h2 {{
             text-align: center;
-            font-size: 20px;
+            font-size: 18px;
             margin-bottom: 20px;
         }}
         .meta {{
@@ -202,22 +205,27 @@ def download_pdf(model, fname):
         }}
         .meta p {{
             margin: 5px 0;
-            font-size: 14px;
+            font-size: 13px;
         }}
         table {{
             border-collapse: collapse;
             width: 100%;
             table-layout: fixed;
             word-wrap: break-word;
-            font-size: 13px;
+            font-size: 12px;
         }}
         th, td {{
             border: 1px solid black;
-            padding: 5px;
+            padding: 6px;
             vertical-align: top;
         }}
         th {{
-            background-color: #e0e0e0;
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+        }}
+        td {{
+            text-align: right;
         }}
     </style>
     </head>
@@ -225,21 +233,21 @@ def download_pdf(model, fname):
         <h2>فرم ارزیابی خودرو</h2>
 
         <div class="meta">
-            <p><strong>Evaluator:</strong> {data["meta"]["evaluator"]}</p>
-            <p><strong>Vehicle Type:</strong> {data["meta"]["vehicle_type"]}</p>
+            <p><strong>ارزیاب:</strong> {data["meta"]["evaluator"]}</p>
+            <p><strong>نوع خودرو:</strong> {data["meta"]["vehicle_type"]}</p>
             <p><strong>VIN:</strong> {data["meta"]["vin"]}</p>
-            <p><strong>Evaluation Date:</strong> {data["meta"]["eval_date"]}</p>
-            <p><strong>Distance:</strong> {data["meta"]["distance"]}</p>
+            <p><strong>تاریخ ارزیابی:</strong> {data["meta"]["eval_date"]}</p>
+            <p><strong>کارکرد:</strong> {data["meta"]["distance"]}</p>
         </div>
 
         <h3>جدول مشاهدات:</h3>
         <table>
             <tr>
-                <th style="width:5%;">ردیف</th>
-                <th style="width:35%;">ایرادات فنی</th>
-                <th style="width:35%;">شرایط بروز ایراد</th>
-                <th style="width:10%;">کیلومتر</th>
-                <th style="width:15%;">نظر سرپرست</th>
+                <th style="width:6%;">ردیف</th>
+                <th style="width:30%;">ایرادات فنی</th>
+                <th style="width:30%;">شرایط بروز ایراد</th>
+                <th style="width:12%;">کیلومتر</th>
+                <th style="width:22%;">نظر سرپرست</th>
             </tr>
     """
 
@@ -265,6 +273,7 @@ def download_pdf(model, fname):
 
     pdf_filename = f'{data["meta"]["eval_date"]}_{data["meta"]["vehicle_type"]}_{data["meta"]["vin"]}_{data["meta"]["evaluator"]}.pdf'
     return send_file(pdf_io, download_name=pdf_filename, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -331,6 +340,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
