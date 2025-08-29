@@ -161,10 +161,6 @@ from flask import send_file, flash, redirect, url_for, session
 import io, os, json
 from weasyprint import HTML, CSS
 
-from flask import send_file, flash, redirect, url_for, session
-import io, os, json
-from weasyprint import HTML
-
 @app.route("/admin/download_pdf/<model>/<fname>", methods=["POST"])
 def download_pdf(model, fname):
     if not session.get("admin_logged_in"):
@@ -179,74 +175,51 @@ def download_pdf(model, fname):
         data = json.load(f)
 
     font_path = os.path.abspath(os.path.join("static", "Vazirmatn-Regular.ttf"))
-    logo_path = os.path.abspath(os.path.join("static", "kmc_logo.png"))
-
     html_content = f"""
     <html>
     <head>
     <meta charset="utf-8">
     <style>
-        @page {{
-            size: A4;
-            margin: 90px 40px 50px 40px;
-            @top-center {{
-                content: element(header);
-            }}
-        }}
-
+        @page {{ margin: 25px; }}
         @font-face {{
             font-family: 'Vazirmatn';
             src: url('file://{font_path}') format('truetype');
         }}
-
         body {{
             font-family: 'Vazirmatn', sans-serif;
             direction: rtl;
             color: #333;
-            line-height: 1.6;
+            line-height: 1.4;
             font-size: 13px;
         }}
-
-        /* هدر */
-        .header {{
-            width: 100%;
-            border-bottom: 2px solid #005baa;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-            position: relative;
-        }}
-        .header h2 {{
-            color: #005baa;
-            font-size: 18px;
-            margin: 0;
+        h2 {{
             text-align: center;
+            color: #005baa;
+            font-size: 22px;
+            margin-bottom: 15px;
         }}
-        .header img {{
-            position: absolute;
-            top: 0;
-            right: 0;
-            height: 45px;
-        }}
-
         .meta {{
             background-color: #f5f5f5;
-            padding: 10px;
+            padding: 12px;
             border-radius: 6px;
-            margin-bottom: 20px;
+            margin: 0 25px 20px 25px;
         }}
         .meta p {{
-            margin: 3px 0;
+            margin: 4px 0;
+            font-size: 14px;
         }}
-
+        .table-wrapper {{
+            margin: 0 25px; /* فاصله از چپ و راست */
+        }}
         table {{
             border-collapse: collapse;
-            width: calc(100% - 60px); /* فاصله از چپ و راست */
-            margin: 0 auto;           /* وسط چین شدن جدول */
+            width: 100%;
             table-layout: fixed;
             word-wrap: break-word;
+            font-size: 12px;
         }}
         th, td {{
-            border: 1px solid #bbb;
+            border: 1px solid #ccc;
             padding: 6px;
             vertical-align: top;
         }}
@@ -254,27 +227,14 @@ def download_pdf(model, fname):
             background-color: #005baa;
             color: white;
             text-align: center;
-            font-size: 12px;
         }}
         td {{
-            font-size: 12px;
+            text-align: right;
         }}
-        th:nth-child(1), td:nth-child(1) {{ width: 7%; }}
-        th:nth-child(2), td:nth-child(2) {{ width: 26%; }}
-        th:nth-child(3), td:nth-child(3) {{ width: 26%; }}
-        th:nth-child(4), td:nth-child(4) {{ width: 12%; }}
-        th:nth-child(5), td:nth-child(5) {{ width: 26%; }}
     </style>
     </head>
     <body>
-
-        <div style="position: running(header);">
-            <div class="header">
-                <h2>فرم ارزیابی خودرو</h2>
-                <img src="file://{logo_path}" alt="KMC Logo">
-            </div>
-        </div>
-
+        <h2>فرم ارزیابی خودرو</h2>
         <div class="meta">
             <p><strong>ارزیاب:</strong> {data["meta"]["evaluator"]}</p>
             <p><strong>نوع خودرو:</strong> {data["meta"]["vehicle_type"]}</p>
@@ -282,29 +242,30 @@ def download_pdf(model, fname):
             <p><strong>تاریخ ارزیابی:</strong> {data["meta"]["eval_date"]}</p>
             <p><strong>مسافت طی شده:</strong> {data["meta"]["distance"]}</p>
         </div>
-
-        <h3 style="color:#005baa;">جدول مشاهدات:</h3>
-        <table>
-            <tr>
-                <th>ردیف</th>
-                <th>ایرادات فنی</th>
-                <th>شرایط بروز ایراد</th>
-                <th>کیلومتر</th>
-                <th>نظر سرپرست</th>
-            </tr>
+        <h3 style="margin:0 25px 10px 25px;">جدول مشاهدات:</h3>
+        <div class="table-wrapper">
+            <table>
+                <tr>
+                    <th style="width:6%;">ردیف</th>
+                    <th style="width:32%;">ایرادات فنی</th>
+                    <th style="width:32%;">شرایط بروز ایراد</th>
+                    <th style="width:10%;">کیلومتر</th>
+                    <th style="width:20%;">نظر سرپرست</th>
+                </tr>
     """
     for r in data["observations"]:
         html_content += f"""
-            <tr>
-                <td>{r.get('row', '')}</td>
-                <td>{r.get('issue', '')}</td>
-                <td>{r.get('condition', '')}</td>
-                <td>{r.get('km', '')}</td>
-                <td>{r.get('supervisor_comment', '')}</td>
-            </tr>
+                <tr>
+                    <td>{r.get('row', '')}</td>
+                    <td>{r.get('issue', '')}</td>
+                    <td>{r.get('condition', '')}</td>
+                    <td>{r.get('km', '')}</td>
+                    <td>{r.get('supervisor_comment', '')}</td>
+                </tr>
         """
     html_content += """
-        </table>
+            </table>
+        </div>
     </body>
     </html>
     """
@@ -315,6 +276,7 @@ def download_pdf(model, fname):
 
     pdf_name = f"{data['meta']['eval_date']}_{data['meta']['vehicle_type']}_{data['meta']['vin']}_{data['meta']['evaluator']}.pdf"
     return send_file(pdf_io, download_name=pdf_name, as_attachment=True, mimetype="application/pdf")
+
 
 
 
@@ -384,6 +346,7 @@ def admin_logout():
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
